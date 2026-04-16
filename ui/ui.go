@@ -20,6 +20,7 @@ type ViewData struct {
 	Loaded          bool
 	Refreshing      bool
 	ShowCommitPanel bool
+	ShowHelp        bool
 	PanelScroll     int
 	NewCommitHash   map[string]struct{}
 	Snapshot        git.Snapshot
@@ -84,28 +85,34 @@ func Render(v ViewData) string {
 	availableBody := max(mainHeight-staticLines, 1)
 	topHeight := availableBody
 	panelHeight := 0
-	showPanel := v.ShowCommitPanel && availableBody > 1
-	if showPanel {
-		panelHeight = max(availableBody/4, 3)
-		if panelHeight > availableBody-1 {
-			panelHeight = availableBody - 1
-		}
-		topHeight = max(availableBody-panelHeight, 1)
-	}
+	showPanel := !v.ShowHelp && v.ShowCommitPanel && availableBody > 1
 
-	body := renderCommitList(v, mainWidth, topHeight)
-	if !v.Loaded {
-		body = renderLoading(mainWidth, topHeight)
-	}
-	body = lipgloss.NewStyle().Height(topHeight).Render(body)
-
-	if v.Snapshot.RepoError != "" {
-		body = errStyle.Render("Error: " + v.Snapshot.RepoError + "\n\nOpen this app from a valid git repository.")
-	}
-
+	body := ""
 	commitPanel := ""
-	if showPanel {
-		commitPanel = renderCommitPanel(v, mainWidth, panelHeight)
+	if v.ShowHelp {
+		body = lipgloss.NewStyle().Height(availableBody).Render(renderHelpView(mainWidth, availableBody))
+	} else {
+		if showPanel {
+			panelHeight = max(availableBody/4, 3)
+			if panelHeight > availableBody-1 {
+				panelHeight = availableBody - 1
+			}
+			topHeight = max(availableBody-panelHeight, 1)
+		}
+
+		body = renderCommitList(v, mainWidth, topHeight)
+		if !v.Loaded {
+			body = renderLoading(mainWidth, topHeight)
+		}
+		body = lipgloss.NewStyle().Height(topHeight).Render(body)
+
+		if v.Snapshot.RepoError != "" {
+			body = errStyle.Render("Error: " + v.Snapshot.RepoError + "\n\nOpen this app from a valid git repository.")
+		}
+
+		if showPanel {
+			commitPanel = renderCommitPanel(v, mainWidth, panelHeight)
+		}
 	}
 
 	sections := make([]string, 0, 8)
@@ -126,9 +133,34 @@ func Render(v ViewData) string {
 	content := lipgloss.JoinVertical(lipgloss.Left, sections...)
 
 	panel := frameStyle.Width(mainWidth).Height(mainHeight).Render(content)
-	help := helpStyle.Width(outerWidth).Render("up/down or j/k: select • [/], u/d, pgup/pgdown: panel scroll • p: toggle commit panel • r: refresh • q: quit")
-	jumpHelp := helpStyle.Width(outerWidth).Render("g/home: jump to latest commit • G/end: jump to initial commit")
+	help := helpStyle.Width(outerWidth).Render("↑ ↓ j k [ ] u d PgUp PgDn p r g G Home End ? h q")
+	jumpHelp := helpStyle.Width(outerWidth).Render("Ctrl+U Ctrl+D Ctrl+C")
 	return lipgloss.JoinVertical(lipgloss.Left, panel, help, jumpHelp)
+}
+
+func renderHelpView(width int, height int) string {
+	lines := []string{
+		titleStyle.Render("Help"),
+		"",
+		labelStyle.Render("Navigation"),
+		msgStyle.Render("up/down, j/k         Move selection"),
+		msgStyle.Render("g or Home            Jump to latest commit"),
+		msgStyle.Render("G or End             Jump to initial commit"),
+		"",
+		labelStyle.Render("Commit Panel"),
+		msgStyle.Render("p                    Toggle commit panel"),
+		msgStyle.Render("[ / ]                Scroll panel by line"),
+		msgStyle.Render("u / d                Scroll panel by chunk"),
+		msgStyle.Render("PgUp / PgDn          Scroll panel by chunk"),
+		msgStyle.Render("Ctrl+U / Ctrl+D      Scroll panel by chunk"),
+		"",
+		labelStyle.Render("General"),
+		msgStyle.Render("r                    Refresh now"),
+		msgStyle.Render("? or h               Toggle help"),
+		msgStyle.Render("q or Ctrl+C          Quit"),
+	}
+	content := strings.Join(lines, "\n")
+	return lipgloss.NewStyle().Width(width).Height(height).Render(content)
 }
 
 func renderCommitPanel(v ViewData, width int, height int) string {
