@@ -33,6 +33,7 @@ jobs:
             goarch: arm64
     env:
       APP_NAME: git-remote-commits
+      VERSION: ${{ github.ref_name }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -50,7 +51,7 @@ jobs:
           if [ "${{ matrix.goos }}" = "windows" ]; then
             ext=".exe"
           fi
-          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o "dist/${APP_NAME}-${{ matrix.goos }}-${{ matrix.goarch }}${ext}" .
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -ldflags "-X main.Version=${VERSION}" -o "dist/${APP_NAME}-${{ matrix.goos }}-${{ matrix.goarch }}${ext}" .
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
