@@ -24,6 +24,7 @@ type snapshotMsg git.Snapshot
 type Model struct {
 	RepoPath        string
 	RemoteName      string
+	Version         string
 	RefreshInterval time.Duration
 	Width           int
 	Height          int
@@ -38,7 +39,7 @@ type Model struct {
 	NewCommitHash map[string]struct{}
 }
 
-func Initial(remoteName string) Model {
+func Initial(remoteName string, version string) Model {
 	wd, err := os.Getwd()
 	if err != nil {
 		wd = "."
@@ -46,10 +47,14 @@ func Initial(remoteName string) Model {
 	if remoteName == "" {
 		remoteName = "origin"
 	}
+	if strings.TrimSpace(version) == "" {
+		version = "dev"
+	}
 
 	return Model{
 		RepoPath:        wd,
 		RemoteName:      remoteName,
+		Version:         version,
 		RefreshInterval: defaultRefresh,
 		Refreshing:      true,
 		KnownHashes:     make(map[string]struct{}),
@@ -184,6 +189,7 @@ func (m Model) View() string {
 		Width:         m.Width,
 		Height:        m.Height,
 		RepoName:      repoName,
+		Version:       m.Version,
 		Selected:      m.Selected,
 		Loaded:        m.Loaded,
 		Refreshing:    m.Refreshing,
