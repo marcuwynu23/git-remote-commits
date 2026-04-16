@@ -13,6 +13,7 @@ import (
 type ViewData struct {
 	Width         int
 	Height        int
+	RepoName      string
 	Selected      int
 	Loaded        bool
 	NewCommitHash map[string]struct{}
@@ -174,6 +175,7 @@ func renderLoading(width int, height int) string {
 }
 
 func renderHeaderLine(v ViewData) string {
+	repo := chipStyle.Render(emptyFallback(v.RepoName, "-"))
 	branch := chipInfoStyle.Render(emptyFallback(v.Snapshot.Branch, "-"))
 	statusText := emptyFallback(v.Snapshot.Status, "-")
 	statusChip := chipStyle.Render(statusText)
@@ -184,6 +186,9 @@ func renderHeaderLine(v ViewData) string {
 	}
 	return lipgloss.JoinHorizontal(
 		lipgloss.Left,
+		labelStyle.Render("Repo "),
+		repo,
+		"  ",
 		labelStyle.Render("Branch "),
 		branch,
 		"  ",
