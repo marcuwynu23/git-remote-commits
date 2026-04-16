@@ -34,6 +34,15 @@ Launch from inside a Git repository directory. The optional `remote` argument de
 - `r`: refresh immediately
 - `q` or `Ctrl+C`: quit
 
+## Status Meanings
+
+- `Status: clean` means there are no local uncommitted changes.
+- `Status: dirty` means there are local changes (modified/staged/untracked files).
+- `Sync: up to date` means local branch and remote branch are aligned.
+- `Sync: X commits behind remote` means remote has commits you do not have locally yet.
+- `Sync: X commits ahead of remote` means your local branch has commits not on remote yet.
+- `Sync: A behind / B ahead` means local and remote have diverged.
+
 ## Build and Release
 
 This project includes a `Makefile` with common tasks:
@@ -62,8 +71,8 @@ make clean
 ## Notes
 
 - Refresh interval is currently set to 3 seconds in `model/model.go`.
-- Remote tracking follows the current local branch upstream (`@{u}`).
-- If the current branch has no upstream, remote status is shown as unavailable.
+- Remote target is `<remote>/<current-branch>` (remote defaults to `origin` unless passed as an argument).
+- Polling performs `git pull <remote> <branch>`, then refreshes commit/sync status.
 
 ## License
 
