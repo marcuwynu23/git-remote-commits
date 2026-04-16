@@ -484,7 +484,13 @@ func renderCommitList(v ViewData, width int, height int) string {
 	maxAuthorW := 0
 	for i := start; i < end; i++ {
 		c := v.Snapshot.Commits[i]
-		ts := c.When.Local().Format("January 2, 2006: 03:04 PM")
+		ts := c.When.Local().Format("2006-01-02")
+		tm := c.When.Local().Format("3:04")
+		ampm := c.When.Local().Format("PM")
+		if len([]rune(tm)) < 5 {
+			tm += strings.Repeat(" ", 5-len([]rune(tm)))
+		}
+		ts = ts + ": " + tm + " " + ampm
 		if c.When.IsZero() {
 			ts = c.Time
 		}
