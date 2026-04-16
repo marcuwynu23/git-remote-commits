@@ -2,12 +2,29 @@ APP_NAME := commitview
 BUILD_DIR := bin
 RELEASE_DIR := dist
 
+ifeq ($(OS),Windows_NT)
+	CURRENT_OS := windows
+	EXE_EXT := .exe
+	RM_DIR := powershell -NoProfile -Command "if (Test-Path '$(1)') { Remove-Item -Recurse -Force '$(1)' }"
+else
+	UNAME_S := $(shell uname -s)
+	ifeq ($(UNAME_S),Darwin)
+		CURRENT_OS := darwin
+	else ifeq ($(UNAME_S),Linux)
+		CURRENT_OS := linux
+	else
+		CURRENT_OS := unknown
+	endif
+	EXE_EXT :=
+	RM_DIR := rm -rf $(1)
+endif
+
 .PHONY: build release clean
 
 build:
-	@echo "Building $(APP_NAME)..."
+	@echo "Building $(APP_NAME) for $(CURRENT_OS)..."
 	@mkdir -p $(BUILD_DIR)
-	@go build -o $(BUILD_DIR)/$(APP_NAME) .
+	@go build -o $(BUILD_DIR)/$(APP_NAME)$(EXE_EXT) .
 
 release:
 	@echo "Building release artifacts..."
@@ -19,4 +36,5 @@ release:
 
 clean:
 	@echo "Cleaning build and release directories..."
-	@rm -rf $(BUILD_DIR) $(RELEASE_DIR)
+	@$(call RM_DIR,$(BUILD_DIR))
+	@$(call RM_DIR,$(RELEASE_DIR))
