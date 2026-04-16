@@ -112,14 +112,13 @@ func renderCommitList(v ViewData, width int, height int) string {
 
 	lines := make([]string, 0, end-start+2)
 	currentAuthor := strings.TrimSpace(v.Snapshot.CurrentAuthor)
+	dateW, hashW, refsW, authorW, msgW := commitColumnWidths(width)
 	for i := start; i < end; i++ {
 		c := v.Snapshot.Commits[i]
-		prefix := "  "
 		ts := c.When.Local().Format("January 2, 2006: 03:04 PM")
 		if c.When.IsZero() {
 			ts = c.Time
 		}
-		rowPrefix := fmt.Sprintf("● %s | ", ts)
 		authorLabel := formatAuthorLabel(c.Author, c.AuthorEmail)
 		refsLabel := commitRefsLabel(c.Refs)
 		isNew := false
@@ -127,36 +126,39 @@ func renderCommitList(v ViewData, width int, height int) string {
 			isNew = true
 		}
 
-		plainPrefix := prefix + rowPrefix + c.Hash + " | "
-		if refsLabel != "" {
-			plainPrefix += refsLabel + " | "
-		}
-		plainPrefix += authorLabel + " | "
-		if isNew {
-			plainPrefix = "NEW " + plainPrefix
-		}
-		msgWidth := max(width-8-len([]rune(plainPrefix)), 0)
-		msg := trimToWidth(c.Message, msgWidth)
+		dateText := padRight(trimToWidth(ts, dateW), dateW)
+		hashText := padRight(trimToWidth(c.Hash, hashW), hashW)
+		refsText := padRight(trimToWidth(emptyFallback(refsLabel, "-"), refsW), refsW)
+		authorTextRaw := padRight(trimToWidth(authorLabel, authorW), authorW)
+		msgText := trimToWidth(c.Message, msgW)
 
-		authorText := authorElse.Render(authorLabel)
+		authorText := authorElse.Render(authorTextRaw)
 		if currentAuthor != "" && strings.EqualFold(strings.TrimSpace(c.Author), currentAuthor) {
-			authorText = authorMe.Render(authorLabel)
+			authorText = authorMe.Render(authorTextRaw)
 		}
 
-		row := rowPrefix + hashStyle.Render(c.Hash) + " | "
-		if refsLabel != "" {
-			row += refStyle.Render(refsLabel) + " | "
-		}
-		row += authorText + " | " + msgStyle.Render(msg)
+		marker := "  "
 		if isNew {
-			row = freshStyle.Render("NEW ") + row
+			marker = freshStyle.Render("N ")
+		}
+
+		row := marker +
+			metaStyle.Render(dateText) + "  " +
+			hashStyle.Render(hashText) + "  " +
+			refStyle.Render(refsText) + "  " +
+			authorText + "  " +
+			msgStyle.Render(msgText)
+		if isNew {
+			row = freshStyle.Render("● ") + row
+		} else {
+			row = "  " + row
 		}
 
 		if i == v.Selected {
 			lines = append(lines, selected.Render("> "+row))
 			continue
 		}
-		lines = append(lines, prefix+row)
+		lines = append(lines, "  "+row)
 	}
 	return strings.Join(lines, "\n")
 }
@@ -259,6 +261,9 @@ func formatAuthorLabel(author, email string) string {
 }
 
 func trimToWidth(s string, w int) string {
+	if w <= 0 {
+		return ""
+	}
 	rs := []rune(s)
 	if len(rs) <= w {
 		return s
@@ -267,6 +272,43 @@ func trimToWidth(s string, w int) string {
 		return string(rs[:w])
 	}
 	return string(rs[:w-3]) + "..."
+}
+
+func padRight(s string, w int) string {
+	if w <= 0 {
+		return ""
+	}
+	rs := []rune(s)
+	if len(rs) >= w {
+		return string(rs[:w])
+	}
+	return s + strings.Repeat(" ", w-len(rs))
+}
+
+func commitColumnWidths(totalWidth int) (dateW, hashW, refsW, authorW, msgW int) {
+	usable := max(totalWidth-8, 20)
+	dateW = 22
+	hashW = 8
+	refsW = 18
+	authorW = 20
+	separators := 8 // spaces between columns
+	minMsg := 12
+
+	msgW = usable - (dateW + hashW + refsW + authorW + separators)
+	if msgW < minMsg {
+		shortage := minMsg - msgW
+		msgW = minMsg
+		reduceRefs := min(shortage, max(refsW-8, 0))
+		refsW -= reduceRefs
+		shortage -= reduceRefs
+		reduceAuthor := min(shortage, max(authorW-10, 0))
+		authorW -= reduceAuthor
+		shortage -= reduceAuthor
+		reduceDate := min(shortage, max(dateW-14, 0))
+		dateW -= reduceDate
+	}
+
+	return dateW, hashW, refsW, authorW, max(msgW, minMsg)
 }
 
 func emptyFallback(s, fallback string) string {
