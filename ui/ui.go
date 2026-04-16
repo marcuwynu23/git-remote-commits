@@ -174,7 +174,7 @@ func renderCommitPanel(v ViewData, width int, height int) string {
 	}
 
 	currentAuthor := strings.TrimSpace(v.Snapshot.CurrentAuthor)
-	authorRaw := emptyFallback(formatAuthorLabel(c.Author, c.AuthorEmail), "-")
+	authorRaw := emptyFallback(authorDisplay(c.Author, c.AuthorEmail), "-")
 	authorStyled := authorElse.Render(authorRaw)
 	if currentAuthor != "" && strings.EqualFold(strings.TrimSpace(c.Author), currentAuthor) {
 		authorStyled = authorMe.Render(authorRaw)
@@ -183,21 +183,20 @@ func renderCommitPanel(v ViewData, width int, height int) string {
 	refsText := strings.TrimSpace(commitRefsLabel(c.Refs))
 
 	infoLines := []string{
-		labelStyle.Render("Hash  ") + " " + hashStyle.Render(emptyFallback(c.Hash, "-")),
-		labelStyle.Render("Author") + " " + authorStyled,
-		labelStyle.Render("When  ") + " " + metaStyle.Render(emptyFallback(when, "-")),
+		labelStyle.Render("Commit Hash:") + " " + hashStyle.Render(emptyFallback(c.Hash, "-")),
+		labelStyle.Render("Author:") + " " + authorStyled,
+		labelStyle.Render("When:") + " " + metaStyle.Render(emptyFallback(when, "-")),
 	}
 	if refsText != "" {
-		infoLines = append(infoLines, labelStyle.Render("Refs  ")+" "+refStyle.Render(refsText))
+		infoLines = append(infoLines, labelStyle.Render("Refs:")+" "+refStyle.Render(refsText))
 	}
+	infoLines = append(infoLines, labelStyle.Render("Title:")+" "+msgStyle.Render(titleText))
 
-	md := "### " + titleText
 	if hasBody {
-		md += "\n\n" + bodyRaw
+		mdLines := renderMarkdownLines(bodyRaw, viewportWidth)
+		infoLines = append(infoLines, "")
+		infoLines = append(infoLines, mdLines...)
 	}
-	mdLines := renderMarkdownLines(md, viewportWidth)
-	infoLines = append(infoLines, "")
-	infoLines = append(infoLines, mdLines...)
 
 	fileLines := buildFileLinesFromDiff(v.Snapshot.SelectedDiff, rightWidth)
 
@@ -297,6 +296,20 @@ func renderMarkdownLines(md string, width int) []string {
 		return []string{""}
 	}
 	return lines
+}
+
+func authorDisplay(author, email string) string {
+	author = strings.TrimSpace(author)
+	email = strings.TrimSpace(email)
+	if email != "" {
+		if at := strings.Index(email, "@"); at > 0 {
+			username := strings.TrimSpace(email[:at])
+			if username != "" {
+				return username
+			}
+		}
+	}
+	return author
 }
 
 func sliceLines(lines []string, start, height int) []string {
