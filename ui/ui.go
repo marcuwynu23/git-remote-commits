@@ -67,7 +67,9 @@ var (
 
 func Render(v ViewData) string {
 	outerWidth := max(v.Width, 1)
-	outerHeight := max(v.Height-1, 1)
+	footerLines := renderShortcutFooterLines(outerWidth)
+	footerReservedHeight := 1 + len(footerLines) // one spacer line + footer lines
+	outerHeight := max(v.Height-footerReservedHeight, 1)
 	frameW := frameStyle.GetHorizontalFrameSize()
 	frameH := frameStyle.GetVerticalFrameSize()
 	mainWidth := max(outerWidth-frameW, 1)
@@ -76,18 +78,25 @@ func Render(v ViewData) string {
 	header := ""
 	statusLine := ""
 	footer := ""
+	headerRendered := ""
+	statusRendered := ""
+	footerRendered := ""
 	if v.Loaded {
 		header = titleStyle.Render(fmt.Sprintf("git remote-commits %s", emptyFallback(v.Version, "dev")))
 		statusLine = renderHeaderLine(v)
 		footer = renderFooterLine(v)
+		headerRendered = lipgloss.NewStyle().Width(mainWidth).Render(header)
+		statusRendered = lipgloss.NewStyle().Width(mainWidth).Render(metaStyle.Render(statusLine))
+		footerRendered = lipgloss.NewStyle().Width(mainWidth).Render(footer)
 	}
 
-	staticLines := 0
+	topFixedLines := 0
+	bottomFixedLines := 0
 	if v.Loaded {
-		// header + status + spacer before body + spacer before footer + footer
-		staticLines = 5
+		topFixedLines = lipgloss.Height(headerRendered) + lipgloss.Height(statusRendered) + 1
+		bottomFixedLines = 1 + lipgloss.Height(footerRendered)
 	}
-	availableBody := max(mainHeight-staticLines, 1)
+	availableBody := max(mainHeight-topFixedLines-bottomFixedLines, 1)
 	topHeight := availableBody
 	panelHeight := 0
 	showPanel := !v.ShowHelp && v.ShowCommitPanel && availableBody > 1
@@ -123,8 +132,8 @@ func Render(v ViewData) string {
 	sections := make([]string, 0, 8)
 	if v.Loaded {
 		sections = append(sections,
-			header,
-			metaStyle.Render(statusLine),
+			headerRendered,
+			statusRendered,
 			"",
 		)
 	}
@@ -133,12 +142,11 @@ func Render(v ViewData) string {
 		sections = append(sections, commitPanel)
 	}
 	if v.Loaded {
-		sections = append(sections, "", footer)
+		sections = append(sections, "", footerRendered)
 	}
 	content := lipgloss.JoinVertical(lipgloss.Left, sections...)
 
 	panel := frameStyle.Width(mainWidth).Height(mainHeight).Render(content)
-	footerLines := renderShortcutFooterLines(outerWidth)
 	footerStyled := make([]string, 0, len(footerLines))
 	for _, line := range footerLines {
 		footerStyled = append(footerStyled, lipgloss.NewStyle().Width(outerWidth).Render(line))
@@ -173,6 +181,7 @@ func renderHelpView(width int, height int) string {
 
 func renderCommitPanel(v ViewData, width int, height int) string {
 	height = max(height, 1)
+	contentHeight := max(height-1, 1) // account for the top border row
 	panelWidth := max(width-2, 10)
 	if len(v.Snapshot.Commits) == 0 {
 		empty := metaStyle.Render("No commit selected.")
@@ -184,7 +193,7 @@ func renderCommitPanel(v ViewData, width int, height int) string {
 			BorderForeground(lipgloss.Color("#374151")).
 			Padding(0, 1).
 			Width(panelWidth).
-			Height(height).
+			Height(contentHeight).
 			Render(empty)
 	}
 
@@ -242,7 +251,7 @@ func renderCommitPanel(v ViewData, width int, height int) string {
 	fileLines := buildFileLinesFromDiff(v.Snapshot.SelectedDiff, rightWidth)
 
 	maxLines := max(len(infoLines), len(fileLines))
-	maxScroll := max(maxLines-height, 0)
+	maxScroll := max(maxLines-contentHeight, 0)
 	scroll := v.PanelScroll
 	if scroll < 0 {
 		scroll = 0
@@ -269,17 +278,17 @@ func renderCommitPanel(v ViewData, width int, height int) string {
 		}
 	}
 
-	leftVisible := sliceLines(infoLines, scroll, height)
-	rightVisible := sliceLines(fileLines, scroll, height)
+	leftVisible := sliceLines(infoLines, scroll, contentHeight)
+	rightVisible := sliceLines(fileLines, scroll, contentHeight)
 
 	leftBlock := lipgloss.NewStyle().
 		Width(leftWidth).
-		Height(height).
+		Height(contentHeight).
 		Render(strings.Join(leftVisible, "\n"))
 
 	rightBlock := lipgloss.NewStyle().
 		Width(rightWidth).
-		Height(height).
+		Height(contentHeight).
 		Render(strings.Join(rightVisible, "\n"))
 
 	body := lipgloss.JoinHorizontal(lipgloss.Left, leftBlock, " ", rightBlock)
@@ -291,7 +300,7 @@ func renderCommitPanel(v ViewData, width int, height int) string {
 		BorderForeground(lipgloss.Color("#374151")).
 		Padding(0, 1).
 		Width(panelWidth).
-		Height(height).
+		Height(contentHeight).
 		Render(body)
 }
 
