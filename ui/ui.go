@@ -65,12 +65,14 @@ func Render(v ViewData) string {
 		footer = renderFooterLine(v)
 	}
 
-	// Keep the panel height stable by giving commits only the remaining viewport lines.
-	commitHeight := max(mainHeight-6, 1)
+	// Keep the panel height stable by giving commits a fixed viewport,
+	// so header/footer positions don't jump when commit count is small.
+	commitHeight := max(mainHeight-5, 1)
 	body := renderCommitList(v, mainWidth, commitHeight)
 	if !v.Loaded {
 		body = renderLoading(mainWidth, commitHeight)
 	}
+	body = lipgloss.NewStyle().Height(commitHeight).Render(body)
 
 	if v.Snapshot.RepoError != "" {
 		body = errStyle.Render("Error: " + v.Snapshot.RepoError + "\n\nOpen this app from a valid git repository.")
@@ -163,9 +165,9 @@ func renderLoading(width int, height int) string {
 	barWidth := min(max(width/3, 18), 36)
 	progressSteps := barWidth
 	pos := int(time.Now().UnixNano()/1e8) % progressSteps
-	filled := strings.Repeat("=", pos+1)
-	empty := strings.Repeat(" ", barWidth-pos-1)
-	bar := "[" + filled + ">" + empty + "]"
+	filled := strings.Repeat("█", pos+1)
+	empty := strings.Repeat("░", barWidth-pos-1)
+	bar := "[" + filled + empty + "]"
 	loading := lipgloss.JoinVertical(
 		lipgloss.Center,
 		metaStyle.Render("Loading commits..."),
@@ -186,7 +188,7 @@ func renderHeaderLine(v ViewData) string {
 	}
 	return lipgloss.JoinHorizontal(
 		lipgloss.Left,
-		labelStyle.Render("Repo "),
+		labelStyle.Render("Repository "),
 		repo,
 		"  ",
 		labelStyle.Render("Branch "),
