@@ -56,7 +56,7 @@ var (
 	helpStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#6B7280"))
 	shortcutStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FFFFFF")).
-			Background(lipgloss.Color("#4B5563")).
+			Background(lipgloss.Color("#60a479")).
 			Bold(true).
 			Padding(0, 1)
 	addFileStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#4ADE80")).Bold(true)
@@ -321,7 +321,6 @@ func renderShortcutFooterLines(width int) []string {
 	groups := []string{
 		"[up/j | down/k]",
 		"[PgUp/u | PgDn/d]",
-		"[[ | ] line]",
 		"[g/Home | G/End]",
 		"[p]",
 		"[r]",
