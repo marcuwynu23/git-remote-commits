@@ -33,8 +33,12 @@ var (
 )
 
 func Render(v ViewData) string {
-	mainWidth := max(v.Width, 1)
-	mainHeight := max(v.Height-1, 1)
+	outerWidth := max(v.Width, 1)
+	outerHeight := max(v.Height-1, 1)
+	frameW := frameStyle.GetHorizontalFrameSize()
+	frameH := frameStyle.GetVerticalFrameSize()
+	mainWidth := max(outerWidth-frameW, 1)
+	mainHeight := max(outerHeight-frameH, 1)
 
 	header := titleStyle.Render("Git Live Monitor")
 	statusLine := fmt.Sprintf("Branch: %s | Status: %s", emptyFallback(v.Snapshot.Branch, "-"), emptyFallback(v.Snapshot.Status, "-"))
@@ -59,7 +63,7 @@ func Render(v ViewData) string {
 	)
 
 	panel := frameStyle.Width(mainWidth).Height(mainHeight).Render(content)
-	help := helpStyle.Width(mainWidth).Render("up/down or j/k: select • r: refresh • q: quit")
+	help := helpStyle.Width(outerWidth).Render("up/down or j/k: select • r: refresh • q: quit")
 	return lipgloss.JoinVertical(lipgloss.Left, panel, help)
 }
 
@@ -70,15 +74,15 @@ func renderCommitList(v ViewData, width int) string {
 	lines := make([]string, 0, len(v.Snapshot.Commits))
 	for i, c := range v.Snapshot.Commits {
 		prefix := "  "
-		ts := c.When.Local().Format("2006-01-02 03:04 PM")
+		ts := c.When.Local().Format("January 2, 2006: 03:04 PM")
 		if c.When.IsZero() {
 			ts = c.Time
 		}
-		row := fmt.Sprintf("● %s | %s", ts, c.Message)
+		row := fmt.Sprintf("● %s | %s | %s", ts, c.Author, c.Message)
 		if _, ok := v.NewCommitHash[c.Hash]; ok {
 			row = "NEW " + row
 		}
-		row = trimToWidth(row, max(width-8, 24))
+		row = trimToWidth(row, max(width-8, 8))
 
 		if i == v.Selected {
 			lines = append(lines, selected.Render("> "+row))

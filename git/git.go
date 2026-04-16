@@ -24,6 +24,7 @@ type Snapshot struct {
 	Commits         []Commit
 	RemoteStatus    string
 	CommitsBehind   int
+	CommitsAhead    int
 	LastRefresh     time.Time
 	RepoError       string
 	SelectedDiff    string
@@ -41,8 +42,7 @@ func IsGitRepo(repoPath string) error {
 
 func CollectSnapshot(repoPath string, limit int) Snapshot {
 	s := Snapshot{
-		LastRefresh:     time.Now(),
-		RemoteTrackName: "origin/main",
+		LastRefresh: time.Now(),
 	}
 
 	if err := IsGitRepo(repoPath); err != nil {
@@ -75,23 +75,84 @@ func CollectSnapshot(repoPath string, limit int) Snapshot {
 	}
 	s.Commits = commits
 
-	_ = fetchRemote(repoPath)
-	behind, err := commitsBehind(repoPath)
+	upstream, err := currentUpstream(repoPath)
+	if err != nil {
+		s.RemoteTrackName = "none"
+		s.RemoteStatus = "no upstream for current branch"
+		return s
+	}
+	s.RemoteTrackName = upstream
+
+	remoteName := strings.SplitN(upstream, "/", 2)[0]
+	_ = fetchRemote(repoPath, remoteName)
+
+	ahead, behind, err := aheadBehind(repoPath, upstream)
 	if err != nil {
 		s.RemoteStatus = "remote unavailable"
 	} else {
 		s.CommitsBehind = behind
+		s.CommitsAhead = ahead
 		switch {
-		case behind == 0:
+		case behind == 0 && ahead == 0:
 			s.RemoteStatus = "up to date"
-		case behind == 1:
-			s.RemoteStatus = "1 commit behind remote"
+		case behind > 0 && ahead == 0:
+			if behind == 1 {
+				s.RemoteStatus = "1 commit behind remote"
+			} else {
+				s.RemoteStatus = fmt.Sprintf("%d commits behind remote", behind)
+			}
+		case behind == 0 && ahead > 0:
+			if ahead == 1 {
+				s.RemoteStatus = "1 commit ahead of remote"
+			} else {
+				s.RemoteStatus = fmt.Sprintf("%d commits ahead of remote", ahead)
+			}
 		default:
-			s.RemoteStatus = fmt.Sprintf("%d commits behind remote", behind)
+			s.RemoteStatus = fmt.Sprintf("%d behind / %d ahead", behind, ahead)
 		}
 	}
 
 	return s
+}
+
+func currentUpstream(repoPath string) (string, error) {
+	out, err := run(repoPath, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
+	if err != nil {
+		return "", err
+	}
+	upstream := strings.TrimSpace(out)
+	if upstream == "" {
+		return "", errors.New("no upstream")
+	}
+	return upstream, nil
+}
+
+func fetchRemote(repoPath, remoteName string) error {
+	if strings.TrimSpace(remoteName) == "" {
+		return errors.New("remote name required")
+	}
+	_, err := run(repoPath, "fetch", remoteName, "--quiet")
+	return err
+}
+
+func aheadBehind(repoPath, upstream string) (ahead int, behind int, err error) {
+	out, err := run(repoPath, "rev-list", "--left-right", "--count", upstream+"...HEAD")
+	if err != nil {
+		return 0, 0, err
+	}
+	parts := strings.Fields(strings.TrimSpace(out))
+	if len(parts) != 2 {
+		return 0, 0, errors.New("unexpected rev-list output")
+	}
+	behind, err = strconv.Atoi(parts[0])
+	if err != nil {
+		return 0, 0, err
+	}
+	ahead, err = strconv.Atoi(parts[1])
+	if err != nil {
+		return 0, 0, err
+	}
+	return ahead, behind, nil
 }
 
 func ShowCommit(repoPath, hash string) string {
@@ -142,11 +203,6 @@ func listCommits(repoPath string, limit int) ([]Commit, error) {
 		})
 	}
 	return commits, nil
-}
-
-func fetchRemote(repoPath string) error {
-	_, err := run(repoPath, "fetch", "origin", "--quiet")
-	return err
 }
 
 func commitsBehind(repoPath string) (int, error) {
