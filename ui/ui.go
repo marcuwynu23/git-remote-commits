@@ -127,7 +127,8 @@ func Render(v ViewData) string {
 
 	panel := frameStyle.Width(mainWidth).Height(mainHeight).Render(content)
 	help := helpStyle.Width(outerWidth).Render("up/down or j/k: select • [/], u/d, pgup/pgdown: panel scroll • p: toggle commit panel • r: refresh • q: quit")
-	return lipgloss.JoinVertical(lipgloss.Left, panel, help)
+	jumpHelp := helpStyle.Width(outerWidth).Render("g/home: jump to latest commit • G/end: jump to initial commit")
+	return lipgloss.JoinVertical(lipgloss.Left, panel, help, jumpHelp)
 }
 
 func renderCommitPanel(v ViewData, width int, height int) string {

@@ -117,6 +117,18 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.PanelScroll = 0
 		}
 		return m.withSelectedDiff(), nil
+	case "g", "home":
+		if len(m.Snapshot.Commits) > 0 {
+			m.Selected = 0
+			m.PanelScroll = 0
+		}
+		return m.withSelectedDiff(), nil
+	case "G", "end":
+		if len(m.Snapshot.Commits) > 0 {
+			m.Selected = len(m.Snapshot.Commits) - 1
+			m.PanelScroll = 0
+		}
+		return m.withSelectedDiff(), nil
 	case "pgup":
 		if m.ShowCommitPanel {
 			m.PanelScroll -= 5
