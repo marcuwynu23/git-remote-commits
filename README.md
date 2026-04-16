@@ -24,6 +24,7 @@ Built with [Bubble Tea](https://github.com/charmbracelet/bubbletea) and [Lip Glo
 go run .
 go run . origin
 go run . --help
+go run . --version
 ```
 
 Launch from inside a Git repository directory. The optional `remote` argument defaults to `origin`.
@@ -55,12 +56,14 @@ make clean
 ```
 
 - `test`: run unit/package tests with `go test ./...`
-- `build`: local build to `bin/git-remote-commits`
+- `build`: local build to `bin/git-remote-commits` with version `dev`
 - `release`: cross-platform binaries in `dist/`
   - `git-remote-commits-linux-amd64`
+  - `git-remote-commits-linux-arm64`
   - `git-remote-commits-darwin-amd64`
   - `git-remote-commits-darwin-arm64`
   - `git-remote-commits-windows-amd64.exe`
+  - `git-remote-commits-windows-arm64.exe`
 - `clean`: remove `bin/` and `dist/`
 
 ## Project Structure
@@ -87,7 +90,8 @@ make clean
 - Release workflow: `.github/workflows/release.yml`
   - Runs on version tags (`v*`) or manual trigger
   - Release job depends on successful test job
-  - Builds artifacts using `make release`
+  - Builds artifacts for linux/darwin/windows on amd64+arm64
+  - Injects app version from tag name into binaries
   - Publishes `dist/*` files to GitHub Releases
 
 ## Funding
@@ -100,6 +104,7 @@ make clean
 - Refresh interval is currently set to 3 seconds in `model/model.go`.
 - Remote target is `<remote>/<current-branch>` (remote defaults to `origin` unless passed as an argument).
 - Polling performs `git pull <remote> <branch>`, then refreshes commit/sync status.
+- Header shows app title and build version.
 
 ## License
 
