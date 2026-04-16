@@ -33,8 +33,8 @@ var (
 )
 
 func Render(v ViewData) string {
-	mainWidth := max(v.Width-2, 70)
-	mainHeight := max(v.Height-3, 16)
+	mainWidth := max(v.Width, 1)
+	mainHeight := max(v.Height-1, 1)
 
 	header := titleStyle.Render("Git Live Monitor")
 	statusLine := fmt.Sprintf("Branch: %s | Status: %s", emptyFallback(v.Snapshot.Branch, "-"), emptyFallback(v.Snapshot.Status, "-"))
@@ -74,7 +74,7 @@ func renderCommitList(v ViewData, width int) string {
 		if c.When.IsZero() {
 			ts = c.Time
 		}
-		row := fmt.Sprintf("● %s (%s)", c.Message, ts)
+		row := fmt.Sprintf("● %s | %s", ts, c.Message)
 		if _, ok := v.NewCommitHash[c.Hash]; ok {
 			row = "NEW " + row
 		}
