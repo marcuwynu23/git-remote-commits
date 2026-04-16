@@ -60,8 +60,7 @@ make clean
 ## Notes
 
 - Refresh interval is currently set to 3 seconds in `model/model.go`.
-- Remote tracking follows the current local branch upstream (`@{u}`).
-- If the current branch has no upstream, remote status is shown as unavailable.
+- Remote tracking assumes `origin/main`.
 
 ## License
 
