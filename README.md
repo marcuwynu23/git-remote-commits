@@ -48,11 +48,13 @@ Launch from inside a Git repository directory. The optional `remote` argument de
 This project includes a `Makefile` with common tasks:
 
 ```bash
+make test
 make build
 make release
 make clean
 ```
 
+- `test`: run unit/package tests with `go test ./...`
 - `build`: local build to `bin/git-remote-commits`
 - `release`: cross-platform binaries in `dist/`
   - `git-remote-commits-linux-amd64`
@@ -67,6 +69,31 @@ make clean
 - `git/`: git command execution and parsing
 - `model/`: Bubble Tea state management and polling loop
 - `ui/`: terminal rendering/layout
+
+## Community Standards
+
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Contributing Guide](CONTRIBUTING.md)
+- Pull request template: `.github/pull_request_template.md`
+- Issue templates:
+  - `.github/ISSUE_TEMPLATE/bug_report.yml`
+  - `.github/ISSUE_TEMPLATE/feature_request.yml`
+
+## CI and Release Automation
+
+- Test workflow: `.github/workflows/test.yml`
+  - Runs on pushes and pull requests to `main`
+  - Executes `make test`
+- Release workflow: `.github/workflows/release.yml`
+  - Runs on version tags (`v*`) or manual trigger
+  - Release job depends on successful test job
+  - Builds artifacts using `make release`
+  - Publishes `dist/*` files to GitHub Releases
+
+## Funding
+
+- GitHub Sponsors custom link is configured in `.github/FUNDING.yml`
+- Support via PayPal: [paypal.me/wynumarcu23](https://paypal.me/wynumarcu23)
 
 ## Notes
 
