@@ -21,6 +21,7 @@ type Commit struct {
 }
 
 type Snapshot struct {
+	RepoName        string
 	Branch          string
 	Status          string
 	Commits         []Commit
@@ -81,6 +82,7 @@ func CollectSnapshot(repoPath string, remoteName string, limit int) Snapshot {
 	}
 	s.Commits = commits
 	s.CurrentAuthor = currentAuthor(repoPath)
+	s.RepoName = remoteRepoName(repoPath, remoteName)
 
 	s.RemoteTrackName = remoteName + "/" + s.Branch
 	_ = fetchRemote(repoPath, remoteName)
@@ -112,6 +114,48 @@ func CollectSnapshot(repoPath string, remoteName string, limit int) Snapshot {
 	}
 
 	return s
+}
+
+func remoteRepoName(repoPath, remoteName string) string {
+	if strings.TrimSpace(remoteName) == "" {
+		return ""
+	}
+	out, err := run(repoPath, "remote", "get-url", remoteName)
+	if err != nil {
+		return ""
+	}
+	url := strings.TrimSpace(out)
+	if url == "" {
+		return ""
+	}
+	url = strings.TrimSuffix(url, ".git")
+
+	// SSH format: git@github.com:owner/repo
+	if strings.Contains(url, "@") && strings.Contains(url, ":") && !strings.Contains(url, "://") {
+		parts := strings.SplitN(url, ":", 2)
+		host := parts[0]
+		path := parts[1]
+		host = strings.TrimPrefix(host, "git@")
+		path = strings.TrimPrefix(path, "/")
+		if host != "" && path != "" {
+			return host + "/" + path
+		}
+	}
+
+	// HTTPS/SSH URL format: scheme://host/owner/repo
+	if i := strings.Index(url, "://"); i >= 0 {
+		rest := url[i+3:]
+		slash := strings.Index(rest, "/")
+		if slash > 0 && slash < len(rest)-1 {
+			host := rest[:slash]
+			path := strings.TrimPrefix(rest[slash+1:], "/")
+			if host != "" && path != "" {
+				return host + "/" + path
+			}
+		}
+	}
+
+	return url
 }
 
 func currentAuthor(repoPath string) string {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"git-remote-commits/git"
@@ -166,10 +167,14 @@ func (m Model) View() string {
 	if m.Quitting {
 		return ""
 	}
+	repoName := strings.TrimSpace(m.Snapshot.RepoName)
+	if repoName == "" {
+		repoName = filepath.Base(m.RepoPath)
+	}
 	return ui.Render(ui.ViewData{
 		Width:         m.Width,
 		Height:        m.Height,
-		RepoName:      filepath.Base(m.RepoPath),
+		RepoName:      repoName,
 		Selected:      m.Selected,
 		Loaded:        m.Loaded,
 		NewCommitHash: m.NewCommitHash,
