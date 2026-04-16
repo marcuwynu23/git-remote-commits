@@ -10,6 +10,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+var Version = "dev"
+
 func main() {
 	remoteName, exitCode, shouldExit := parseArgs(os.Args[1:])
 	if shouldExit {
@@ -27,7 +29,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	p := tea.NewProgram(model.Initial(remoteName), tea.WithAltScreen())
+	p := tea.NewProgram(model.Initial(remoteName, Version), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
@@ -52,6 +54,9 @@ func parseArgs(args []string) (remoteName string, exitCode int, shouldExit bool)
 	case "-h", "--help":
 		printUsage()
 		return "", 0, true
+	case "-v", "--version":
+		fmt.Printf("git-remote-commits %s\n", Version)
+		return "", 0, true
 	default:
 		if strings.HasPrefix(arg, "-") {
 			fmt.Fprintf(os.Stderr, "Error: unknown flag %q.\n", arg)
@@ -70,4 +75,5 @@ func printUsage() {
 	fmt.Println("")
 	fmt.Println("Options:")
 	fmt.Println("  -h, --help    Show this help message")
+	fmt.Println("  -v, --version Show application version")
 }

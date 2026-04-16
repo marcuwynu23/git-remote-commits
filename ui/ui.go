@@ -14,6 +14,7 @@ type ViewData struct {
 	Width         int
 	Height        int
 	RepoName      string
+	Version       string
 	Selected      int
 	Loaded        bool
 	Refreshing    bool
@@ -63,7 +64,7 @@ func Render(v ViewData) string {
 	statusLine := ""
 	footer := ""
 	if v.Loaded {
-		header = titleStyle.Render("git remote-commits")
+		header = titleStyle.Render(fmt.Sprintf("git remote-commits %s", emptyFallback(v.Version, "dev")))
 		statusLine = renderHeaderLine(v)
 		footer = renderFooterLine(v)
 	}
