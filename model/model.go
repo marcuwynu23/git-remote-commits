@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"os"
 	"time"
 
@@ -64,7 +65,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		return m.handleKey(v)
 	case snapshotMsg:
-		m.applySnapshot(git.Snapshot(v))
+		shouldRing := m.applySnapshot(git.Snapshot(v))
+		if shouldRing {
+			return m, tea.Batch(m.tickCmd(), bellCmd())
+		}
 		return m, m.tickCmd()
 	case tickMsg:
 		return m, m.pollCmd()
@@ -93,7 +97,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *Model) applySnapshot(s git.Snapshot) {
+func (m *Model) applySnapshot(s git.Snapshot) bool {
+	firstLoad := !m.Loaded
 	m.Snapshot = s
 	m.Loaded = true
 	m.NewCommitHash = make(map[string]struct{})
@@ -103,6 +108,7 @@ func (m *Model) applySnapshot(s git.Snapshot) {
 			m.NewCommitHash[c.Hash] = struct{}{}
 		}
 	}
+	newCount := len(m.NewCommitHash)
 
 	m.KnownHashes = make(map[string]struct{}, len(s.Commits))
 	for _, c := range s.Commits {
@@ -111,7 +117,7 @@ func (m *Model) applySnapshot(s git.Snapshot) {
 
 	if len(s.Commits) == 0 {
 		m.Selected = 0
-		return
+		return !firstLoad && newCount > 0
 	}
 
 	if m.Selected >= len(s.Commits) {
@@ -120,6 +126,7 @@ func (m *Model) applySnapshot(s git.Snapshot) {
 	if m.Selected < 0 {
 		m.Selected = 0
 	}
+	return !firstLoad && newCount > 0
 }
 
 func (m Model) tickCmd() tea.Cmd {
@@ -147,4 +154,11 @@ func (m Model) View() string {
 		NewCommitHash: m.NewCommitHash,
 		Snapshot:      m.Snapshot,
 	})
+}
+
+func bellCmd() tea.Cmd {
+	return func() tea.Msg {
+		fmt.Print("\a")
+		return nil
+	}
 }
