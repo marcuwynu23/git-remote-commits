@@ -7,6 +7,7 @@ import (
 
 	"git-remote-commits/git"
 
+	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -44,14 +45,18 @@ var (
 	chipInfoStyle = chipStyle.Copy().
 			Foreground(lipgloss.Color("#082F49")).
 			Background(lipgloss.Color("#93C5FD"))
-	selected   = lipgloss.NewStyle().Background(lipgloss.Color("#312E81"))
-	freshStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#4ADE80"))
-	hashStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#FACC15"))
-	refStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#93C5FD"))
-	authorMe   = lipgloss.NewStyle().Foreground(lipgloss.Color("#22C55E")).Bold(true)
-	authorElse = lipgloss.NewStyle().Foreground(lipgloss.Color("#86EFAC"))
-	msgStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#9CA3AF"))
-	helpStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#6B7280"))
+	selected     = lipgloss.NewStyle().Background(lipgloss.Color("#312E81"))
+	freshStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#4ADE80"))
+	hashStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#FACC15"))
+	refStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#93C5FD"))
+	authorMe     = lipgloss.NewStyle().Foreground(lipgloss.Color("#22C55E")).Bold(true)
+	authorElse   = lipgloss.NewStyle().Foreground(lipgloss.Color("#86EFAC"))
+	msgStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#9CA3AF"))
+	helpStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#6B7280"))
+	addFileStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#4ADE80")).Bold(true)
+	delFileStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#F87171")).Bold(true)
+	modFileStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FCD34D")).Bold(true)
+	renFileStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#93C5FD")).Bold(true)
 )
 
 func Render(v ViewData) string {
@@ -154,16 +159,18 @@ func renderCommitPanel(v ViewData, width int, height int) string {
 	if c.When.IsZero() {
 		when = c.Time
 	}
-	viewportWidth := max(panelWidth-2, 8)
-
-	titleText := emptyFallback(c.Message, "-")
-	titleLines := wrapLines(titleText, viewportWidth)
+	leftWidth := max((panelWidth*3)/5, 20)
+	if leftWidth > panelWidth-8 {
+		leftWidth = max(panelWidth-8, 10)
+	}
+	rightWidth := max(panelWidth-leftWidth-1, 10)
+	viewportWidth := max(leftWidth-2, 8)
 
 	bodyRaw := strings.TrimSpace(c.Body)
 	hasBody := bodyRaw != ""
-	var bodyLines []string
-	if hasBody {
-		bodyLines = wrapLines(bodyRaw, viewportWidth)
+	titleText := strings.TrimSpace(c.Message)
+	if titleText == "" {
+		titleText = "-"
 	}
 
 	currentAuthor := strings.TrimSpace(v.Snapshot.CurrentAuthor)
@@ -175,26 +182,27 @@ func renderCommitPanel(v ViewData, width int, height int) string {
 
 	refsText := strings.TrimSpace(commitRefsLabel(c.Refs))
 
-	lines := []string{
+	infoLines := []string{
 		labelStyle.Render("Hash  ") + " " + hashStyle.Render(emptyFallback(c.Hash, "-")),
 		labelStyle.Render("Author") + " " + authorStyled,
 		labelStyle.Render("When  ") + " " + metaStyle.Render(emptyFallback(when, "-")),
 	}
 	if refsText != "" {
-		lines = append(lines, labelStyle.Render("Refs  ")+" "+refStyle.Render(refsText))
-	}
-	lines = append(lines, "", labelStyle.Render("Title"))
-	for _, tl := range titleLines {
-		lines = append(lines, msgStyle.Render(tl))
-	}
-	if hasBody {
-		lines = append(lines, "", labelStyle.Render("Body"))
-		for _, bl := range bodyLines {
-			lines = append(lines, msgStyle.Render(bl))
-		}
+		infoLines = append(infoLines, labelStyle.Render("Refs  ")+" "+refStyle.Render(refsText))
 	}
 
-	maxScroll := max(len(lines)-height, 0)
+	md := "### " + titleText
+	if hasBody {
+		md += "\n\n" + bodyRaw
+	}
+	mdLines := renderMarkdownLines(md, viewportWidth)
+	infoLines = append(infoLines, "")
+	infoLines = append(infoLines, mdLines...)
+
+	fileLines := buildFileLinesFromDiff(v.Snapshot.SelectedDiff, rightWidth)
+
+	maxLines := max(len(infoLines), len(fileLines))
+	maxScroll := max(maxLines-height, 0)
 	scroll := v.PanelScroll
 	if scroll < 0 {
 		scroll = 0
@@ -205,7 +213,7 @@ func renderCommitPanel(v ViewData, width int, height int) string {
 	hasUp := scroll > 0
 	hasDown := scroll < maxScroll
 
-	if len(lines) > 0 {
+	if len(infoLines) > 0 {
 		indicator := ""
 		if hasUp {
 			indicator += "↑"
@@ -217,13 +225,24 @@ func renderCommitPanel(v ViewData, width int, height int) string {
 			indicator += "↓"
 		}
 		if indicator != "" {
-			lines[0] = lines[0] + "  " + metaStyle.Render(indicator+" u/d")
+			infoLines[0] = infoLines[0] + "  " + metaStyle.Render(indicator+" u/d")
 		}
 	}
 
-	end := min(scroll+height, len(lines))
-	visible := lines[scroll:end]
-	body := lipgloss.NewStyle().Height(height).Render(strings.Join(visible, "\n"))
+	leftVisible := sliceLines(infoLines, scroll, height)
+	rightVisible := sliceLines(fileLines, scroll, height)
+
+	leftBlock := lipgloss.NewStyle().
+		Width(leftWidth).
+		Height(height).
+		Render(strings.Join(leftVisible, "\n"))
+
+	rightBlock := lipgloss.NewStyle().
+		Width(rightWidth).
+		Height(height).
+		Render(strings.Join(rightVisible, "\n"))
+
+	body := lipgloss.JoinHorizontal(lipgloss.Left, leftBlock, " ", rightBlock)
 	return lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
 		BorderLeft(false).
@@ -255,6 +274,171 @@ func wrapLines(text string, width int) []string {
 		out = append(out, string(runes))
 	}
 	return out
+}
+
+func renderMarkdownLines(md string, width int) []string {
+	if width <= 0 {
+		return []string{""}
+	}
+	r, err := glamour.NewTermRenderer(
+		glamour.WithAutoStyle(),
+		glamour.WithWordWrap(width),
+	)
+	if err != nil {
+		return wrapLines(md, width)
+	}
+	out, err := r.Render(md)
+	if err != nil {
+		return wrapLines(md, width)
+	}
+	out = strings.TrimRight(out, "\n")
+	lines := strings.Split(out, "\n")
+	if len(lines) == 0 {
+		return []string{""}
+	}
+	return lines
+}
+
+func sliceLines(lines []string, start, height int) []string {
+	if height <= 0 {
+		return []string{}
+	}
+	if start < 0 {
+		start = 0
+	}
+	if start > len(lines) {
+		start = len(lines)
+	}
+	end := min(start+height, len(lines))
+	out := make([]string, 0, height)
+	for i := start; i < end; i++ {
+		out = append(out, lines[i])
+	}
+	for len(out) < height {
+		out = append(out, "")
+	}
+	return out
+}
+
+func buildFileLinesFromDiff(diff string, width int) []string {
+	width = max(width-2, 8)
+	raw := strings.TrimSpace(diff)
+	if raw == "" || raw == "No commit selected." || raw == "Unable to load diff preview." {
+		return []string{metaStyle.Render("No file changes.")}
+	}
+
+	type fileChange struct {
+		path   string
+		status string // added|modified|deleted|renamed
+		from   string
+		to     string
+	}
+
+	seen := make(map[string]struct{})
+	changes := make([]fileChange, 0)
+
+	var cur *fileChange
+	flush := func() {
+		if cur == nil {
+			return
+		}
+		key := cur.path
+		if cur.status == "renamed" && cur.from != "" && cur.to != "" {
+			key = cur.from + "->" + cur.to
+		}
+		if key == "" {
+			cur = nil
+			return
+		}
+		if _, ok := seen[key]; ok {
+			cur = nil
+			return
+		}
+		seen[key] = struct{}{}
+		changes = append(changes, *cur)
+		cur = nil
+	}
+
+	for _, line := range strings.Split(raw, "\n") {
+		line = strings.TrimRight(line, "\r")
+		trim := strings.TrimSpace(line)
+		if strings.HasPrefix(trim, "diff --git ") {
+			flush()
+			parts := strings.Fields(trim)
+			if len(parts) >= 4 {
+				path := strings.TrimPrefix(parts[2], "a/")
+				path = strings.TrimSpace(path)
+				if path != "" {
+					tmp := fileChange{path: path, status: "modified"}
+					cur = &tmp
+				}
+			}
+			continue
+		}
+		if cur == nil {
+			continue
+		}
+		switch {
+		case strings.HasPrefix(trim, "new file mode "):
+			cur.status = "added"
+		case strings.HasPrefix(trim, "deleted file mode "):
+			cur.status = "deleted"
+		case strings.HasPrefix(trim, "rename from "):
+			cur.status = "renamed"
+			cur.from = strings.TrimSpace(strings.TrimPrefix(trim, "rename from "))
+		case strings.HasPrefix(trim, "rename to "):
+			cur.status = "renamed"
+			cur.to = strings.TrimSpace(strings.TrimPrefix(trim, "rename to "))
+		case strings.HasPrefix(trim, "--- ") && strings.Contains(trim, "/dev/null"):
+			cur.status = "added"
+		case strings.HasPrefix(trim, "+++ ") && strings.Contains(trim, "/dev/null"):
+			cur.status = "deleted"
+		}
+	}
+	flush()
+
+	if len(changes) == 0 {
+		return []string{metaStyle.Render("No file changes.")}
+	}
+
+	lines := []string{labelStyle.Render("File Changes")}
+	for _, ch := range changes {
+		symbol := "~"
+		symbolStyle := modFileStyle
+		pathStyle := modFileStyle
+		display := ch.path
+		switch ch.status {
+		case "added":
+			symbol = "+"
+			symbolStyle = addFileStyle
+			pathStyle = addFileStyle
+		case "deleted":
+			symbol = "-"
+			symbolStyle = delFileStyle
+			pathStyle = delFileStyle
+		case "renamed":
+			symbol = "→"
+			symbolStyle = renFileStyle
+			pathStyle = renFileStyle
+			if ch.from != "" && ch.to != "" {
+				display = ch.from + " -> " + ch.to
+			}
+		default:
+			symbol = "~"
+			symbolStyle = modFileStyle
+			pathStyle = modFileStyle
+		}
+
+		wrapped := wrapLines(display, width)
+		if len(wrapped) == 0 {
+			continue
+		}
+		lines = append(lines, symbolStyle.Render(symbol)+" "+pathStyle.Render(wrapped[0]))
+		for i := 1; i < len(wrapped); i++ {
+			lines = append(lines, "  "+pathStyle.Render(wrapped[i]))
+		}
+	}
+	return lines
 }
 
 func renderCommitList(v ViewData, width int, height int) string {
