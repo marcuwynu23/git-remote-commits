@@ -58,10 +58,12 @@ func Render(v ViewData) string {
 	mainWidth := max(outerWidth-frameW, 1)
 	mainHeight := max(outerHeight-frameH, 1)
 
-	header := titleStyle.Render("git remote-commits")
-	statusLine := renderHeaderLine(v)
-	footer := metaStyle.Render("Loading repository data...")
+	header := ""
+	statusLine := ""
+	footer := ""
 	if v.Loaded {
+		header = titleStyle.Render("git remote-commits")
+		statusLine = renderHeaderLine(v)
 		footer = renderFooterLine(v)
 	}
 
