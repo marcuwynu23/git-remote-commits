@@ -46,14 +46,18 @@ var (
 	chipInfoStyle = chipStyle.Copy().
 			Foreground(lipgloss.Color("#082F49")).
 			Background(lipgloss.Color("#93C5FD"))
-	selected     = lipgloss.NewStyle().Background(lipgloss.Color("#312E81"))
-	freshStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#4ADE80"))
-	hashStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#FACC15"))
-	refStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#93C5FD"))
-	authorMe     = lipgloss.NewStyle().Foreground(lipgloss.Color("#22C55E")).Bold(true)
-	authorElse   = lipgloss.NewStyle().Foreground(lipgloss.Color("#86EFAC"))
-	msgStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#9CA3AF"))
-	helpStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#6B7280"))
+	selected      = lipgloss.NewStyle().Background(lipgloss.Color("#312E81"))
+	freshStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#4ADE80"))
+	hashStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#FACC15"))
+	refStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#93C5FD"))
+	authorMe      = lipgloss.NewStyle().Foreground(lipgloss.Color("#22C55E")).Bold(true)
+	authorElse    = lipgloss.NewStyle().Foreground(lipgloss.Color("#86EFAC"))
+	msgStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#9CA3AF"))
+	helpStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#6B7280"))
+	shortcutStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#000000")).
+			Background(lipgloss.Color("#FFFFFF")).
+			Padding(0, 1)
 	addFileStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#4ADE80")).Bold(true)
 	delFileStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#F87171")).Bold(true)
 	modFileStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FCD34D")).Bold(true)
@@ -136,7 +140,7 @@ func Render(v ViewData) string {
 	footerLines := renderShortcutFooterLines(outerWidth)
 	footerStyled := make([]string, 0, len(footerLines))
 	for _, line := range footerLines {
-		footerStyled = append(footerStyled, helpStyle.Width(outerWidth).Render(line))
+		footerStyled = append(footerStyled, lipgloss.NewStyle().Width(outerWidth).Render(line))
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, append([]string{panel}, footerStyled...)...)
 }
@@ -325,21 +329,27 @@ func renderShortcutFooterLines(width int) []string {
 		"[Ctrl+U | Ctrl+D]",
 	}
 	lines := make([]string, 0, 3)
-	current := ""
+	currentRaw := ""
+	currentStyled := ""
 	for _, group := range groups {
-		next := group
-		if current != "" {
-			next = current + "  " + group
+		styledGroup := shortcutStyle.Render(group)
+		nextRaw := group
+		nextStyled := styledGroup
+		if currentRaw != "" {
+			nextRaw = currentRaw + "  " + group
+			nextStyled = currentStyled + "  " + styledGroup
 		}
-		if len([]rune(next)) > width && current != "" {
-			lines = append(lines, current)
-			current = group
+		if len([]rune(nextRaw)) > width && currentRaw != "" {
+			lines = append(lines, currentStyled)
+			currentRaw = group
+			currentStyled = styledGroup
 			continue
 		}
-		current = next
+		currentRaw = nextRaw
+		currentStyled = nextStyled
 	}
-	if current != "" {
-		lines = append(lines, current)
+	if currentStyled != "" {
+		lines = append(lines, currentStyled)
 	}
 	return lines
 }
