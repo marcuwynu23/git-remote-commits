@@ -6,11 +6,11 @@ Built with [Bubble Tea](https://github.com/charmbracelet/bubbletea) and [Lip Glo
 
 ## Features
 
-- Live commit list with hash, message, author, and relative time.
+- Live commit list with date, author, and commit message.
 - Auto-refresh polling (default every 3 seconds).
 - New commit highlighting between refreshes.
-- Remote tracking status for `origin/main` (`up to date` / `X commits behind remote`).
-- Optional diff preview panel for selected commit (`git show`).
+- Live remote tracking for the current branch upstream (for example `origin/feature-x`), not a fixed branch.
+- Upstream status shows `up to date`, ahead, behind, or diverged counts.
 - Friendly error handling for non-repo paths and git command failures.
 
 ## Requirements
@@ -29,7 +29,6 @@ Launch from inside a Git repository directory.
 ## Controls
 
 - `up/down` or `j/k`: move commit selection
-- `d`: toggle diff preview panel
 - `r`: refresh immediately
 - `q` or `Ctrl+C`: quit
 
@@ -61,7 +60,8 @@ make clean
 ## Notes
 
 - Refresh interval is currently set to 3 seconds in `model/model.go`.
-- Remote tracking assumes `origin/main`.
+- Remote tracking follows the current local branch upstream (`@{u}`).
+- If the current branch has no upstream, remote status is shown as unavailable.
 
 ## License
 
