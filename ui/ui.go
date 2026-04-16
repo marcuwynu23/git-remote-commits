@@ -110,9 +110,17 @@ func renderCommitList(v ViewData, width int, height int) string {
 	}
 	end := min(start+height, total)
 
-	lines := make([]string, 0, end-start+2)
-	currentAuthor := strings.TrimSpace(v.Snapshot.CurrentAuthor)
-	dateW, hashW, refsW, authorW, msgW := commitColumnWidths(width)
+	type rowData struct {
+		commit      git.Commit
+		timeLabel   string
+		authorLabel string
+		refsLabel   string
+		isNew       bool
+	}
+	rows := make([]rowData, 0, end-start)
+	maxTimeW := 0
+	maxRefsW := 0
+	maxAuthorW := 0
 	for i := start; i < end; i++ {
 		c := v.Snapshot.Commits[i]
 		ts := c.When.Local().Format("January 2, 2006: 03:04 PM")
@@ -120,25 +128,40 @@ func renderCommitList(v ViewData, width int, height int) string {
 			ts = c.Time
 		}
 		authorLabel := formatAuthorLabel(c.Author, c.AuthorEmail)
-		refsLabel := commitRefsLabel(c.Refs)
-		isNew := false
-		if _, ok := v.NewCommitHash[c.Hash]; ok {
-			isNew = true
-		}
+		refsLabel := emptyFallback(commitRefsLabel(c.Refs), "-")
+		_, isNew := v.NewCommitHash[c.Hash]
 
-		dateText := padRight(trimToWidth(ts, dateW), dateW)
-		hashText := padRight(trimToWidth(c.Hash, hashW), hashW)
-		refsText := padRight(trimToWidth(emptyFallback(refsLabel, "-"), refsW), refsW)
-		authorTextRaw := padRight(trimToWidth(authorLabel, authorW), authorW)
+		rows = append(rows, rowData{
+			commit:      c,
+			timeLabel:   ts,
+			authorLabel: authorLabel,
+			refsLabel:   refsLabel,
+			isNew:       isNew,
+		})
+		maxTimeW = max(maxTimeW, len([]rune(ts)))
+		maxRefsW = max(maxRefsW, len([]rune(refsLabel)))
+		maxAuthorW = max(maxAuthorW, len([]rune(authorLabel)))
+	}
+
+	dateW, hashW, refsW, authorW, msgW := commitColumnWidths(width, maxTimeW, maxRefsW, maxAuthorW)
+	lines := make([]string, 0, len(rows)+2)
+	currentAuthor := strings.TrimSpace(v.Snapshot.CurrentAuthor)
+	for idx, r := range rows {
+		i := start + idx
+		dateText := padRight(r.timeLabel, dateW)
+		hashText := padRight(trimToWidth(r.commit.Hash, hashW), hashW)
+		refsText := padRight(r.refsLabel, refsW)
+		authorTextRaw := padRight(r.authorLabel, authorW)
 		msgText := trimToWidth(c.Message, msgW)
+		msgText = trimToWidth(r.commit.Message, msgW)
 
 		authorText := authorElse.Render(authorTextRaw)
-		if currentAuthor != "" && strings.EqualFold(strings.TrimSpace(c.Author), currentAuthor) {
+		if currentAuthor != "" && strings.EqualFold(strings.TrimSpace(r.commit.Author), currentAuthor) {
 			authorText = authorMe.Render(authorTextRaw)
 		}
 
 		marker := "  "
-		if isNew {
+		if r.isNew {
 			marker = freshStyle.Render("N ")
 		}
 
@@ -148,7 +171,7 @@ func renderCommitList(v ViewData, width int, height int) string {
 			refStyle.Render(refsText) + "  " +
 			authorText + "  " +
 			msgStyle.Render(msgText)
-		if isNew {
+		if r.isNew {
 			row = freshStyle.Render("● ") + row
 		} else {
 			row = "  " + row
@@ -286,29 +309,19 @@ func padRight(s string, w int) string {
 }
 
 func commitColumnWidths(totalWidth int) (dateW, hashW, refsW, authorW, msgW int) {
+func commitColumnWidths(totalWidth int, maxTimeW int, maxRefsW int, maxAuthorW int) (dateW, hashW, refsW, authorW, msgW int) {
 	usable := max(totalWidth-8, 20)
-	dateW = 22
 	hashW = 8
-	refsW = 18
-	authorW = 20
+	dateW = max(16, maxTimeW)
+	refsW = max(1, maxRefsW)
+	authorW = max(1, maxAuthorW)
 	separators := 8 // spaces between columns
-	minMsg := 12
 
 	msgW = usable - (dateW + hashW + refsW + authorW + separators)
-	if msgW < minMsg {
-		shortage := minMsg - msgW
-		msgW = minMsg
-		reduceRefs := min(shortage, max(refsW-8, 0))
-		refsW -= reduceRefs
-		shortage -= reduceRefs
-		reduceAuthor := min(shortage, max(authorW-10, 0))
-		authorW -= reduceAuthor
-		shortage -= reduceAuthor
-		reduceDate := min(shortage, max(dateW-14, 0))
-		dateW -= reduceDate
+	if msgW < 0 {
+		msgW = 0
 	}
-
-	return dateW, hashW, refsW, authorW, max(msgW, minMsg)
+	return dateW, hashW, refsW, authorW, msgW
 }
 
 func emptyFallback(s, fallback string) string {
