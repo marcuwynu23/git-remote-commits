@@ -186,6 +186,7 @@ func (m Model) View() string {
 		RepoName:      repoName,
 		Selected:      m.Selected,
 		Loaded:        m.Loaded,
+		Refreshing:    m.Refreshing,
 		NewCommitHash: m.NewCommitHash,
 		Snapshot:      m.Snapshot,
 	})

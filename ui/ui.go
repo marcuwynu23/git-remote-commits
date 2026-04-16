@@ -16,6 +16,7 @@ type ViewData struct {
 	RepoName      string
 	Selected      int
 	Loaded        bool
+	Refreshing    bool
 	NewCommitHash map[string]struct{}
 	Snapshot      git.Snapshot
 }
@@ -223,15 +224,19 @@ func renderHeaderLine(v ViewData) string {
 func renderFooterLine(v ViewData) string {
 	remote := chipInfoStyle.Render(emptyFallback(v.Snapshot.RemoteTrackName, "none"))
 	syncText := emptyFallback(v.Snapshot.RemoteStatus, "checking remote...")
+	if v.Refreshing {
+		syncText = "refreshing..."
+	}
 	syncChip := chipStyle.Render(syncText)
-	if strings.EqualFold(syncText, "up to date") {
+	if v.Refreshing {
+		syncChip = chipInfoStyle.Render(syncText)
+	} else if strings.EqualFold(syncText, "up to date") {
 		syncChip = chipGoodStyle.Render(syncText)
 	} else if strings.Contains(strings.ToLower(syncText), "behind") || strings.Contains(strings.ToLower(syncText), "diverged") {
 		syncChip = chipWarnStyle.Render(syncText)
 	}
 	refresh := chipStyle.Render(v.Snapshot.LastRefresh.Format(time.Kitchen))
-	return lipgloss.JoinHorizontal(
-		lipgloss.Left,
+	parts := []string{
 		labelStyle.Render("Remote "),
 		remote,
 		"  ",
@@ -240,7 +245,28 @@ func renderFooterLine(v ViewData) string {
 		"  ",
 		labelStyle.Render("Refresh "),
 		refresh,
+	}
+	if v.Refreshing {
+		parts = append(parts,
+			"  ",
+			labelStyle.Render("Loading "),
+			freshStyle.Render(renderMiniLoadingBar(12)),
+		)
+	}
+	return lipgloss.JoinHorizontal(
+		lipgloss.Left,
+		parts...,
 	)
+}
+
+func renderMiniLoadingBar(width int) string {
+	if width <= 0 {
+		return ""
+	}
+	pos := int(time.Now().UnixNano()/1e8) % width
+	filled := strings.Repeat("█", pos+1)
+	empty := strings.Repeat("░", width-pos-1)
+	return "[" + filled + empty + "]"
 }
 
 func commitRefsLabel(raw string) string {
