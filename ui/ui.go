@@ -11,15 +11,16 @@ import (
 )
 
 type ViewData struct {
-	Width         int
-	Height        int
-	RepoName      string
-	Version       string
-	Selected      int
-	Loaded        bool
-	Refreshing    bool
-	NewCommitHash map[string]struct{}
-	Snapshot      git.Snapshot
+	Width           int
+	Height          int
+	RepoName        string
+	Version         string
+	Selected        int
+	Loaded          bool
+	Refreshing      bool
+	ShowCommitPanel bool
+	NewCommitHash   map[string]struct{}
+	Snapshot        git.Snapshot
 }
 
 var (
@@ -69,32 +70,108 @@ func Render(v ViewData) string {
 		footer = renderFooterLine(v)
 	}
 
-	// Keep the panel height stable by giving commits a fixed viewport,
-	// so header/footer positions don't jump when commit count is small.
-	commitHeight := max(mainHeight-5, 1)
-	body := renderCommitList(v, mainWidth, commitHeight)
-	if !v.Loaded {
-		body = renderLoading(mainWidth, commitHeight)
+	staticLines := 0
+	if v.Loaded {
+		// header + status + spacer before body + spacer before footer + footer
+		staticLines = 5
 	}
-	body = lipgloss.NewStyle().Height(commitHeight).Render(body)
+	availableBody := max(mainHeight-staticLines, 1)
+	topHeight := availableBody
+	panelHeight := 0
+	if v.ShowCommitPanel && availableBody > 1 {
+		panelHeight = max(availableBody/4, 3)
+		if panelHeight > availableBody-1 {
+			panelHeight = availableBody - 1
+		}
+		topHeight = max(availableBody-panelHeight, 1)
+	}
+
+	body := renderCommitList(v, mainWidth, topHeight)
+	if !v.Loaded {
+		body = renderLoading(mainWidth, topHeight)
+	}
+	body = lipgloss.NewStyle().Height(topHeight).Render(body)
 
 	if v.Snapshot.RepoError != "" {
 		body = errStyle.Render("Error: " + v.Snapshot.RepoError + "\n\nOpen this app from a valid git repository.")
 	}
 
-	content := lipgloss.JoinVertical(
-		lipgloss.Left,
-		header,
-		metaStyle.Render(statusLine),
-		"",
-		body,
-		"",
-		footer,
-	)
+	commitPanel := ""
+	if v.ShowCommitPanel {
+		commitPanel = renderCommitPanel(v, mainWidth, panelHeight)
+	}
+
+	sections := make([]string, 0, 8)
+	if v.Loaded {
+		sections = append(sections,
+			header,
+			metaStyle.Render(statusLine),
+			"",
+		)
+	}
+	sections = append(sections, body)
+	if v.ShowCommitPanel && panelHeight > 0 {
+		sections = append(sections, commitPanel)
+	}
+	if v.Loaded {
+		sections = append(sections, "", footer)
+	}
+	content := lipgloss.JoinVertical(lipgloss.Left, sections...)
 
 	panel := frameStyle.Width(mainWidth).Height(mainHeight).Render(content)
-	help := helpStyle.Width(outerWidth).Render("up/down or j/k: select • r: refresh • q: quit")
+	help := helpStyle.Width(outerWidth).Render("up/down or j/k: select • p: toggle commit panel • r: refresh • q: quit")
 	return lipgloss.JoinVertical(lipgloss.Left, panel, help)
+}
+
+func renderCommitPanel(v ViewData, width int, height int) string {
+	height = max(height, 1)
+	panelWidth := max(width-2, 10)
+	if len(v.Snapshot.Commits) == 0 {
+		empty := metaStyle.Render("No commit selected.")
+		return lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder()).
+			BorderLeft(false).
+			BorderRight(false).
+			BorderBottom(false).
+			BorderForeground(lipgloss.Color("#374151")).
+			Padding(0, 1).
+			Width(panelWidth).
+			Height(height).
+			Render(empty)
+	}
+
+	selectedIndex := v.Selected
+	if selectedIndex < 0 {
+		selectedIndex = 0
+	}
+	if selectedIndex >= len(v.Snapshot.Commits) {
+		selectedIndex = len(v.Snapshot.Commits) - 1
+	}
+	c := v.Snapshot.Commits[selectedIndex]
+	when := c.When.Local().Format("January 2, 2006: 03:04 PM")
+	if c.When.IsZero() {
+		when = c.Time
+	}
+	lines := []string{
+		labelStyle.Render("Hash  ") + hashStyle.Render(emptyFallback(c.Hash, "-")),
+		labelStyle.Render("Author") + " " + formatAuthorLabel(c.Author, c.AuthorEmail),
+		labelStyle.Render("When  ") + " " + metaStyle.Render(emptyFallback(when, "-")),
+		labelStyle.Render("Refs  ") + " " + refStyle.Render(emptyFallback(commitRefsLabel(c.Refs), "-")),
+		"",
+		labelStyle.Render("Title ") + " " + msgStyle.Render(emptyFallback(c.Message, "-")),
+		labelStyle.Render("Body  ") + " " + msgStyle.Render(emptyFallback(c.Body, "-")),
+	}
+	body := lipgloss.NewStyle().Height(height).Render(strings.Join(lines, "\n"))
+	return lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		BorderLeft(false).
+		BorderRight(false).
+		BorderBottom(false).
+		BorderForeground(lipgloss.Color("#374151")).
+		Padding(0, 1).
+		Width(panelWidth).
+		Height(height).
+		Render(body)
 }
 
 func renderCommitList(v ViewData, width int, height int) string {

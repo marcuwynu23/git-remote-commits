@@ -32,6 +32,7 @@ Launch from inside a Git repository directory. The optional `remote` argument de
 ## Controls
 
 - `up/down` or `j/k`: move commit selection
+- `p`: toggle commit panel
 - `r`: refresh immediately
 - `q` or `Ctrl+C`: quit
 
