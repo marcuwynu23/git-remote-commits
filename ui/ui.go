@@ -14,7 +14,6 @@ type ViewData struct {
 	Width         int
 	Height        int
 	Selected      int
-	ShowDiff      bool
 	NewCommitHash map[string]struct{}
 	Snapshot      git.Snapshot
 }
@@ -31,12 +30,11 @@ var (
 	freshStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#4ADE80"))
 	oldStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#9CA3AF"))
 	helpStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#6B7280"))
-	diffTitle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FDE68A"))
 )
 
 func Render(v ViewData) string {
 	mainWidth := max(v.Width-2, 70)
-	mainHeight := max(v.Height-2, 18)
+	mainHeight := max(v.Height-3, 16)
 
 	header := titleStyle.Render("Git Live Monitor")
 	statusLine := fmt.Sprintf("Branch: %s | Status: %s", emptyFallback(v.Snapshot.Branch, "-"), emptyFallback(v.Snapshot.Status, "-"))
@@ -58,38 +56,11 @@ func Render(v ViewData) string {
 		body,
 		"",
 		footer,
-		"",
-		helpStyle.Render("up/down or j/k: select • d: toggle diff • r: refresh • q: quit"),
 	)
 
-	mainPanel := frameStyle.Width(mainWidth).Height(mainHeight).Render(content)
-
-	if !v.ShowDiff {
-		return mainPanel
-	}
-
-	leftW := max((v.Width/2)-2, 40)
-	rightW := max(v.Width-leftW-6, 30)
-	left := frameStyle.Width(leftW).Height(mainHeight).Render(lipgloss.JoinVertical(
-		lipgloss.Left,
-		header,
-		metaStyle.Render(statusLine),
-		"",
-		renderCommitList(v, leftW),
-		"",
-		footer,
-	))
-	diffBody := clampLines(v.Snapshot.SelectedDiff, max(mainHeight-4, 8))
-	right := frameStyle.Width(rightW).Height(mainHeight).Render(
-		lipgloss.JoinVertical(
-			lipgloss.Left,
-			diffTitle.Render("Diff Preview"),
-			metaStyle.Render("git show "+emptyFallback(v.Snapshot.SelectedHash, "<none>")),
-			"",
-			diffBody,
-		),
-	)
-	return lipgloss.JoinHorizontal(lipgloss.Top, left, right)
+	panel := frameStyle.Width(mainWidth).Height(mainHeight).Render(content)
+	help := helpStyle.Width(mainWidth).Render("up/down or j/k: select • r: refresh • q: quit")
+	return lipgloss.JoinVertical(lipgloss.Left, panel, help)
 }
 
 func renderCommitList(v ViewData, width int) string {
@@ -99,7 +70,11 @@ func renderCommitList(v ViewData, width int) string {
 	lines := make([]string, 0, len(v.Snapshot.Commits))
 	for i, c := range v.Snapshot.Commits {
 		prefix := "  "
-		row := fmt.Sprintf("● %s %s (%s, %s)", c.Hash, c.Message, c.Author, c.Time)
+		ts := c.When.Local().Format("2006-01-02 03:04 PM")
+		if c.When.IsZero() {
+			ts = c.Time
+		}
+		row := fmt.Sprintf("● %s (%s)", c.Message, ts)
 		if _, ok := v.NewCommitHash[c.Hash]; ok {
 			row = "NEW " + row
 		}
@@ -116,14 +91,6 @@ func renderCommitList(v ViewData, width int) string {
 		}
 	}
 	return strings.Join(lines, "\n")
-}
-
-func clampLines(s string, maxLines int) string {
-	lines := strings.Split(s, "\n")
-	if len(lines) <= maxLines {
-		return s
-	}
-	return strings.Join(lines[:maxLines], "\n") + "\n... (truncated)"
 }
 
 func trimToWidth(s string, w int) string {

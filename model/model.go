@@ -17,10 +17,6 @@ const (
 
 type tickMsg time.Time
 type snapshotMsg git.Snapshot
-type diffMsg struct {
-	hash string
-	diff string
-}
 
 type Model struct {
 	RepoPath        string
@@ -29,7 +25,6 @@ type Model struct {
 	Height          int
 	Selected        int
 	Quitting        bool
-	ShowDiff        bool
 
 	Snapshot      git.Snapshot
 	KnownHashes   map[string]struct{}
@@ -45,7 +40,6 @@ func Initial() Model {
 	return Model{
 		RepoPath:        wd,
 		RefreshInterval: defaultRefresh,
-		ShowDiff:        true,
 		KnownHashes:     make(map[string]struct{}),
 		NewCommitHash:   make(map[string]struct{}),
 	}
@@ -65,12 +59,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleKey(v)
 	case snapshotMsg:
 		m.applySnapshot(git.Snapshot(v))
-		return m, tea.Batch(m.tickCmd(), m.loadSelectedDiffCmd())
-	case diffMsg:
-		if m.Snapshot.SelectedHash == v.hash {
-			m.Snapshot.SelectedDiff = v.diff
-		}
-		return m, nil
+		return m, m.tickCmd()
 	case tickMsg:
 		return m, m.pollCmd()
 	}
@@ -86,14 +75,11 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.Selected > 0 {
 			m.Selected--
 		}
-		return m, m.loadSelectedDiffCmd()
+		return m, nil
 	case "down", "j":
 		if m.Selected < len(m.Snapshot.Commits)-1 {
 			m.Selected++
 		}
-		return m, m.loadSelectedDiffCmd()
-	case "d":
-		m.ShowDiff = !m.ShowDiff
 		return m, nil
 	case "r":
 		return m, m.pollCmd()
@@ -103,7 +89,6 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m *Model) applySnapshot(s git.Snapshot) {
 	m.Snapshot = s
-	m.Snapshot.SelectedDiff = "Loading diff preview..."
 	m.NewCommitHash = make(map[string]struct{})
 
 	for _, c := range s.Commits {
@@ -119,8 +104,6 @@ func (m *Model) applySnapshot(s git.Snapshot) {
 
 	if len(s.Commits) == 0 {
 		m.Selected = 0
-		m.Snapshot.SelectedHash = ""
-		m.Snapshot.SelectedDiff = "No commits in this repository yet."
 		return
 	}
 
@@ -130,8 +113,6 @@ func (m *Model) applySnapshot(s git.Snapshot) {
 	if m.Selected < 0 {
 		m.Selected = 0
 	}
-
-	m.Snapshot.SelectedHash = s.Commits[m.Selected].Hash
 }
 
 func (m Model) tickCmd() tea.Cmd {
@@ -147,20 +128,6 @@ func (m Model) pollCmd() tea.Cmd {
 	}
 }
 
-func (m Model) loadSelectedDiffCmd() tea.Cmd {
-	if len(m.Snapshot.Commits) == 0 {
-		return nil
-	}
-	hash := m.Snapshot.Commits[m.Selected].Hash
-	m.Snapshot.SelectedHash = hash
-	return func() tea.Msg {
-		return diffMsg{
-			hash: hash,
-			diff: git.ShowCommit(m.RepoPath, hash),
-		}
-	}
-}
-
 func (m Model) View() string {
 	if m.Quitting {
 		return ""
@@ -169,7 +136,6 @@ func (m Model) View() string {
 		Width:         m.Width,
 		Height:        m.Height,
 		Selected:      m.Selected,
-		ShowDiff:      m.ShowDiff,
 		NewCommitHash: m.NewCommitHash,
 		Snapshot:      m.Snapshot,
 	})
