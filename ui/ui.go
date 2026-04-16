@@ -152,8 +152,7 @@ func renderCommitList(v ViewData, width int, height int) string {
 		hashText := padRight(trimToWidth(r.commit.Hash, hashW), hashW)
 		refsText := padRight(r.refsLabel, refsW)
 		authorTextRaw := padRight(r.authorLabel, authorW)
-		msgText := trimToWidth(c.Message, msgW)
-		msgText = trimToWidth(r.commit.Message, msgW)
+		msgText := trimToWidth(r.commit.Message, msgW)
 
 		authorText := authorElse.Render(authorTextRaw)
 		if currentAuthor != "" && strings.EqualFold(strings.TrimSpace(r.commit.Author), currentAuthor) {
@@ -308,7 +307,6 @@ func padRight(s string, w int) string {
 	return s + strings.Repeat(" ", w-len(rs))
 }
 
-func commitColumnWidths(totalWidth int) (dateW, hashW, refsW, authorW, msgW int) {
 func commitColumnWidths(totalWidth int, maxTimeW int, maxRefsW int, maxAuthorW int) (dateW, hashW, refsW, authorW, msgW int) {
 	usable := max(totalWidth-8, 20)
 	hashW = 8
