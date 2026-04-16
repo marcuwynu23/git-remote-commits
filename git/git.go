@@ -64,6 +64,8 @@ func CollectSnapshot(repoPath string, remoteName string, limit int) Snapshot {
 	}
 	s.Branch = strings.TrimSpace(branch)
 
+	pullErr := pullRemoteBranch(repoPath, remoteName, s.Branch)
+
 	porcelain, err := run(repoPath, "status", "--porcelain")
 	if err != nil {
 		s.RepoError = "failed to read git status"
@@ -85,10 +87,10 @@ func CollectSnapshot(repoPath string, remoteName string, limit int) Snapshot {
 	s.RepoName = remoteRepoName(repoPath, remoteName)
 
 	s.RemoteTrackName = remoteName + "/" + s.Branch
-	_ = fetchRemote(repoPath, remoteName)
-
 	ahead, behind, err := aheadBehind(repoPath, s.RemoteTrackName)
-	if err != nil {
+	if pullErr != nil {
+		s.RemoteStatus = "pull failed: " + pullErr.Error()
+	} else if err != nil {
 		s.RemoteStatus = "remote unavailable"
 	} else {
 		s.CommitsBehind = behind
@@ -171,6 +173,17 @@ func fetchRemote(repoPath, remoteName string) error {
 		return errors.New("remote name required")
 	}
 	_, err := run(repoPath, "fetch", remoteName, "--quiet")
+	return err
+}
+
+func pullRemoteBranch(repoPath, remoteName, branch string) error {
+	if strings.TrimSpace(remoteName) == "" {
+		return errors.New("remote name required")
+	}
+	if strings.TrimSpace(branch) == "" {
+		return errors.New("branch name required")
+	}
+	_, err := run(repoPath, "pull", remoteName, branch)
 	return err
 }
 
