@@ -16,6 +16,7 @@ type Commit struct {
 	AuthorEmail string
 	Refs        string
 	Message     string
+	Body        string
 	Time        string
 	When        time.Time
 }
@@ -222,7 +223,7 @@ func ShowCommit(repoPath, hash string) string {
 }
 
 func listCommits(repoPath string, limit int) ([]Commit, error) {
-	args := []string{"log", "--decorate=short", "--pretty=format:%h|%an|%ae|%ar|%at|%d|%s"}
+	args := []string{"log", "--decorate=short", "--pretty=format:%h%x1f%an%x1f%ae%x1f%ar%x1f%at%x1f%d%x1f%s%x1f%b%x1e"}
 	if limit > 0 {
 		args = append(args, fmt.Sprintf("-%d", limit))
 	}
@@ -238,11 +239,16 @@ func listCommits(repoPath string, limit int) ([]Commit, error) {
 		return []Commit{}, nil
 	}
 
-	lines := strings.Split(strings.TrimSpace(out), "\n")
-	commits := make([]Commit, 0, len(lines))
-	for _, line := range lines {
-		parts := strings.SplitN(line, "|", 7)
-		if len(parts) != 7 {
+	records := strings.Split(out, "\x1e")
+	commits := make([]Commit, 0, len(records))
+	for _, record := range records {
+		record = strings.TrimSpace(record)
+		if record == "" {
+			continue
+		}
+
+		parts := strings.SplitN(record, "\x1f", 8)
+		if len(parts) != 8 {
 			continue
 		}
 		epoch, _ := strconv.ParseInt(parts[4], 10, 64)
@@ -254,6 +260,7 @@ func listCommits(repoPath string, limit int) ([]Commit, error) {
 			When:        time.Unix(epoch, 0),
 			Refs:        strings.TrimSpace(parts[5]),
 			Message:     parts[6],
+			Body:        strings.TrimSpace(parts[7]),
 		})
 	}
 	return commits, nil

@@ -32,6 +32,7 @@ type Model struct {
 	Loaded          bool
 	Refreshing      bool
 	PendingRefresh  bool
+	ShowCommitPanel bool
 	Quitting        bool
 
 	Snapshot      git.Snapshot
@@ -57,6 +58,7 @@ func Initial(remoteName string, version string) Model {
 		Version:         version,
 		RefreshInterval: defaultRefresh,
 		Refreshing:      true,
+		ShowCommitPanel: false,
 		KnownHashes:     make(map[string]struct{}),
 		NewCommitHash:   make(map[string]struct{}),
 	}
@@ -119,6 +121,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.Refreshing = true
 		return m, m.pollCmd()
+	case "p":
+		m.ShowCommitPanel = !m.ShowCommitPanel
+		return m, nil
 	}
 	return m, nil
 }
@@ -186,15 +191,16 @@ func (m Model) View() string {
 		repoName = filepath.Base(m.RepoPath)
 	}
 	return ui.Render(ui.ViewData{
-		Width:         m.Width,
-		Height:        m.Height,
-		RepoName:      repoName,
-		Version:       m.Version,
-		Selected:      m.Selected,
-		Loaded:        m.Loaded,
-		Refreshing:    m.Refreshing,
-		NewCommitHash: m.NewCommitHash,
-		Snapshot:      m.Snapshot,
+		Width:           m.Width,
+		Height:          m.Height,
+		RepoName:        repoName,
+		Version:         m.Version,
+		Selected:        m.Selected,
+		Loaded:          m.Loaded,
+		Refreshing:      m.Refreshing,
+		ShowCommitPanel: m.ShowCommitPanel,
+		NewCommitHash:   m.NewCommitHash,
+		Snapshot:        m.Snapshot,
 	})
 }
 
