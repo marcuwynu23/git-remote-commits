@@ -56,9 +56,8 @@ var (
 	helpStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#6B7280"))
 	shortcutStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FFFFFF")).
-			Background(lipgloss.Color("#60a479")).
 			Bold(true).
-			Padding(0, 1)
+			Padding(0, 0)
 	addFileStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#4ADE80")).Bold(true)
 	delFileStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#F87171")).Bold(true)
 	modFileStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FCD34D")).Bold(true)
