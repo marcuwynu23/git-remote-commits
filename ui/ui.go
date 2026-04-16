@@ -55,8 +55,9 @@ var (
 	msgStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#9CA3AF"))
 	helpStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("#6B7280"))
 	shortcutStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#000000")).
-			Background(lipgloss.Color("#FFFFFF")).
+			Foreground(lipgloss.Color("#FFFFFF")).
+			Background(lipgloss.Color("#4B5563")).
+			Bold(true).
 			Padding(0, 1)
 	addFileStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#4ADE80")).Bold(true)
 	delFileStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#F87171")).Bold(true)
@@ -142,7 +143,7 @@ func Render(v ViewData) string {
 	for _, line := range footerLines {
 		footerStyled = append(footerStyled, lipgloss.NewStyle().Width(outerWidth).Render(line))
 	}
-	return lipgloss.JoinVertical(lipgloss.Left, append([]string{panel}, footerStyled...)...)
+	return lipgloss.JoinVertical(lipgloss.Left, append([]string{panel, ""}, footerStyled...)...)
 }
 
 func renderHelpView(width int, height int) string {
