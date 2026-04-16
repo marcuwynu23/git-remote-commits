@@ -33,6 +33,7 @@ type Model struct {
 	Refreshing      bool
 	PendingRefresh  bool
 	ShowCommitPanel bool
+	PanelScroll     int
 	Quitting        bool
 
 	Snapshot      git.Snapshot
@@ -107,11 +108,52 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "up", "k":
 		if m.Selected > 0 {
 			m.Selected--
+			m.PanelScroll = 0
 		}
 		return m, nil
 	case "down", "j":
 		if m.Selected < len(m.Snapshot.Commits)-1 {
 			m.Selected++
+			m.PanelScroll = 0
+		}
+		return m, nil
+	case "pgup":
+		if m.ShowCommitPanel {
+			m.PanelScroll -= 5
+			if m.PanelScroll < 0 {
+				m.PanelScroll = 0
+			}
+		}
+		return m, nil
+	case "pgdown":
+		if m.ShowCommitPanel {
+			m.PanelScroll += 5
+		}
+		return m, nil
+	case "u", "ctrl+u":
+		if m.ShowCommitPanel {
+			m.PanelScroll -= 5
+			if m.PanelScroll < 0 {
+				m.PanelScroll = 0
+			}
+		}
+		return m, nil
+	case "d", "ctrl+d":
+		if m.ShowCommitPanel {
+			m.PanelScroll += 5
+		}
+		return m, nil
+	case "[":
+		if m.ShowCommitPanel {
+			m.PanelScroll--
+			if m.PanelScroll < 0 {
+				m.PanelScroll = 0
+			}
+		}
+		return m, nil
+	case "]":
+		if m.ShowCommitPanel {
+			m.PanelScroll++
 		}
 		return m, nil
 	case "r":
@@ -121,8 +163,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.Refreshing = true
 		return m, m.pollCmd()
-	case "p":
+	case "p", "P":
 		m.ShowCommitPanel = !m.ShowCommitPanel
+		m.PanelScroll = 0
 		return m, nil
 	}
 	return m, nil
@@ -152,12 +195,14 @@ func (m *Model) applySnapshot(s git.Snapshot) bool {
 
 	if len(s.Commits) == 0 {
 		m.Selected = 0
+		m.PanelScroll = 0
 		return !firstLoad && newCount > 0
 	}
 
 	// If the newest commit changed after refresh/pull, jump to top so updated content is visible.
 	if previousTopHash != "" && s.Commits[0].Hash != previousTopHash {
 		m.Selected = 0
+		m.PanelScroll = 0
 	}
 
 	if m.Selected >= len(s.Commits) {
@@ -165,6 +210,9 @@ func (m *Model) applySnapshot(s git.Snapshot) bool {
 	}
 	if m.Selected < 0 {
 		m.Selected = 0
+	}
+	if m.PanelScroll < 0 {
+		m.PanelScroll = 0
 	}
 	return !firstLoad && newCount > 0
 }
@@ -199,6 +247,7 @@ func (m Model) View() string {
 		Loaded:          m.Loaded,
 		Refreshing:      m.Refreshing,
 		ShowCommitPanel: m.ShowCommitPanel,
+		PanelScroll:     m.PanelScroll,
 		NewCommitHash:   m.NewCommitHash,
 		Snapshot:        m.Snapshot,
 	})

@@ -19,6 +19,7 @@ type ViewData struct {
 	Loaded          bool
 	Refreshing      bool
 	ShowCommitPanel bool
+	PanelScroll     int
 	NewCommitHash   map[string]struct{}
 	Snapshot        git.Snapshot
 }
@@ -78,7 +79,8 @@ func Render(v ViewData) string {
 	availableBody := max(mainHeight-staticLines, 1)
 	topHeight := availableBody
 	panelHeight := 0
-	if v.ShowCommitPanel && availableBody > 1 {
+	showPanel := v.ShowCommitPanel && availableBody > 1
+	if showPanel {
 		panelHeight = max(availableBody/4, 3)
 		if panelHeight > availableBody-1 {
 			panelHeight = availableBody - 1
@@ -97,7 +99,7 @@ func Render(v ViewData) string {
 	}
 
 	commitPanel := ""
-	if v.ShowCommitPanel {
+	if showPanel {
 		commitPanel = renderCommitPanel(v, mainWidth, panelHeight)
 	}
 
@@ -110,7 +112,7 @@ func Render(v ViewData) string {
 		)
 	}
 	sections = append(sections, body)
-	if v.ShowCommitPanel && panelHeight > 0 {
+	if showPanel && panelHeight > 0 {
 		sections = append(sections, commitPanel)
 	}
 	if v.Loaded {
@@ -119,7 +121,7 @@ func Render(v ViewData) string {
 	content := lipgloss.JoinVertical(lipgloss.Left, sections...)
 
 	panel := frameStyle.Width(mainWidth).Height(mainHeight).Render(content)
-	help := helpStyle.Width(outerWidth).Render("up/down or j/k: select • p: toggle commit panel • r: refresh • q: quit")
+	help := helpStyle.Width(outerWidth).Render("up/down or j/k: select • [/], u/d, pgup/pgdown: panel scroll • p: toggle commit panel • r: refresh • q: quit")
 	return lipgloss.JoinVertical(lipgloss.Left, panel, help)
 }
 
@@ -152,16 +154,66 @@ func renderCommitPanel(v ViewData, width int, height int) string {
 	if c.When.IsZero() {
 		when = c.Time
 	}
+	viewportWidth := max(panelWidth-2, 8)
+
+	titleText := emptyFallback(c.Message, "-")
+	titleLines := wrapLines(titleText, viewportWidth)
+
+	bodyRaw := strings.TrimSpace(c.Body)
+	hasBody := bodyRaw != ""
+	var bodyLines []string
+	if hasBody {
+		bodyLines = wrapLines(bodyRaw, viewportWidth)
+	}
+
 	lines := []string{
 		labelStyle.Render("Hash  ") + hashStyle.Render(emptyFallback(c.Hash, "-")),
-		labelStyle.Render("Author") + " " + formatAuthorLabel(c.Author, c.AuthorEmail),
+		labelStyle.Render("Author") + " " + msgStyle.Render(emptyFallback(formatAuthorLabel(c.Author, c.AuthorEmail), "-")),
 		labelStyle.Render("When  ") + " " + metaStyle.Render(emptyFallback(when, "-")),
 		labelStyle.Render("Refs  ") + " " + refStyle.Render(emptyFallback(commitRefsLabel(c.Refs), "-")),
 		"",
-		labelStyle.Render("Title ") + " " + msgStyle.Render(emptyFallback(c.Message, "-")),
-		labelStyle.Render("Body  ") + " " + msgStyle.Render(emptyFallback(c.Body, "-")),
+		labelStyle.Render("Title"),
 	}
-	body := lipgloss.NewStyle().Height(height).Render(strings.Join(lines, "\n"))
+	for _, tl := range titleLines {
+		lines = append(lines, msgStyle.Render(tl))
+	}
+	if hasBody {
+		lines = append(lines, "", labelStyle.Render("Body"))
+		for _, bl := range bodyLines {
+			lines = append(lines, msgStyle.Render(bl))
+		}
+	}
+
+	maxScroll := max(len(lines)-height, 0)
+	scroll := v.PanelScroll
+	if scroll < 0 {
+		scroll = 0
+	}
+	if scroll > maxScroll {
+		scroll = maxScroll
+	}
+	hasUp := scroll > 0
+	hasDown := scroll < maxScroll
+
+	if len(lines) > 0 {
+		indicator := ""
+		if hasUp {
+			indicator += "↑"
+		}
+		if hasDown {
+			if indicator != "" {
+				indicator += " "
+			}
+			indicator += "↓"
+		}
+		if indicator != "" {
+			lines[0] = lines[0] + "  " + metaStyle.Render(indicator+" u/d")
+		}
+	}
+
+	end := min(scroll+height, len(lines))
+	visible := lines[scroll:end]
+	body := lipgloss.NewStyle().Height(height).Render(strings.Join(visible, "\n"))
 	return lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
 		BorderLeft(false).
@@ -172,6 +224,27 @@ func renderCommitPanel(v ViewData, width int, height int) string {
 		Width(panelWidth).
 		Height(height).
 		Render(body)
+}
+
+func wrapLines(text string, width int) []string {
+	if width <= 0 {
+		return []string{""}
+	}
+	srcLines := strings.Split(text, "\n")
+	out := make([]string, 0, len(srcLines))
+	for _, src := range srcLines {
+		runes := []rune(src)
+		if len(runes) == 0 {
+			out = append(out, "")
+			continue
+		}
+		for len(runes) > width {
+			out = append(out, string(runes[:width]))
+			runes = runes[width:]
+		}
+		out = append(out, string(runes))
+	}
+	return out
 }
 
 func renderCommitList(v ViewData, width int, height int) string {
