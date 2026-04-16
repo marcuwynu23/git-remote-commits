@@ -15,6 +15,24 @@ jobs:
     needs: [test]
     permissions:
       contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+          - goos: windows
+            goarch: arm64
+    env:
+      APP_NAME: git-remote-commits
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,8 +42,15 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Build release artifacts
-        run: make release
+      - name: Build release artifact
+        shell: bash
+        run: |
+          mkdir -p dist
+          ext=""
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            ext=".exe"
+          fi
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o "dist/${APP_NAME}-${{ matrix.goos }}-${{ matrix.goarch }}${ext}" .
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
