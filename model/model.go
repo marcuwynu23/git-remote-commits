@@ -120,6 +120,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m *Model) applySnapshot(s git.Snapshot) bool {
 	firstLoad := !m.Loaded
+	previousTopHash := ""
+	if len(m.Snapshot.Commits) > 0 {
+		previousTopHash = m.Snapshot.Commits[0].Hash
+	}
 	m.Snapshot = s
 	m.Loaded = true
 	m.NewCommitHash = make(map[string]struct{})
@@ -139,6 +143,11 @@ func (m *Model) applySnapshot(s git.Snapshot) bool {
 	if len(s.Commits) == 0 {
 		m.Selected = 0
 		return !firstLoad && newCount > 0
+	}
+
+	// If the newest commit changed after refresh/pull, jump to top so updated content is visible.
+	if previousTopHash != "" && s.Commits[0].Hash != previousTopHash {
+		m.Selected = 0
 	}
 
 	if m.Selected >= len(s.Commits) {
