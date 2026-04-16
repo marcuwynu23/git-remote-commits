@@ -1,92 +1,68 @@
-# TUI App Template
+# commitview
 
-A **Go project template** for building terminal user interface (TUI) applications with a full-screen layout, top menubar, and navigable screens. Clone, customize, and ship.
+`commitview` is a terminal UI that monitors Git activity in real time, like an `htop`-style dashboard for repository commits.
 
----
+Built with [Bubble Tea](https://github.com/charmbracelet/bubbletea) and [Lip Gloss](https://github.com/charmbracelet/lipgloss).
 
 ## Features
 
-- **Full terminal** — Uses the full terminal size (alt screen); content resizes with the window.
-- **Top menubar** — Horizontal bar with app name and items (Home │ Dashboard │ Settings │ About │ Quit). Navigate with **←/→** or **h/l**, **Enter** to open.
-- **Multi-screen** — Simple routing: add screen constants, menu items, and key handlers.
-- **Stack** — [BubbleTea](https://github.com/charmbracelet/bubbletea) (Elm-style TUI) + [Lip Gloss](https://github.com/charmbracelet/lipgloss) (styling).
+- Live commit list with hash, message, author, and relative time.
+- Auto-refresh polling (default every 3 seconds).
+- New commit highlighting between refreshes.
+- Remote tracking status for `origin/main` (`up to date` / `X commits behind remote`).
+- Optional diff preview panel for selected commit (`git show`).
+- Friendly error handling for non-repo paths and git command failures.
 
----
+## Requirements
 
-## Quick start
+- Go 1.18+ (1.21+ recommended)
+- Git installed and available in `PATH`
 
-1. **Copy or clone** this repository.
-2. **Rename the module** in `go.mod` (e.g. `module my-app`).
-3. **Set your app name** in `main.go`: update the `appName` constant.
-4. **Run:**
-
-   ```bash
-   go mod tidy
-   go run .
-   ```
-
-**Requirements:** Go 1.18+ (1.21+ recommended).
-
----
-
-## Navigation
-
-| Key | Action |
-|-----|--------|
-| **← / h** | Move menubar selection left |
-| **→ / l** | Move menubar selection right |
-| **Enter** | Open selected screen |
-| **Esc / b** | Back to main menu |
-| **q** / **Ctrl+C** | Quit |
-
----
-
-## Documentation
-
-| Resource | Description |
-|----------|-------------|
-| **[GUIDE.md](GUIDE.md)** | How to build UI components: **menubar**, **sidebar**, **text editor**, and layout patterns with Lip Gloss. |
-| **[LICENSE](LICENSE)** | MIT License. |
-
----
-
-## Template structure
-
-| Where | What to do |
-|-------|------------|
-| `appName` (main.go) | Your app’s display name. |
-| Screen constants | Add `screenFoo = "foo"` for each new screen. |
-| `menuItems` | Add the menu label (e.g. `"My Screen"`). |
-| `handleMenuKeys()` / `handleScreenKeys()` | Add `case "My Screen": m.currentScreen = screenFoo`; update `screenForLabel()`. |
-| `View()` | Add `case screenFoo: return m.renderScreen("My Screen", "content")`. |
-
-Optional: add styles in the `var (...)` block and use them in `renderMenubar()` or `renderScreen()`.
-
----
-
-## Default screens
-
-| Screen | Purpose |
-|--------|---------|
-| **Home** | Placeholder welcome. |
-| **Dashboard** | Placeholder list; replace with data or widgets. |
-| **Settings** | Placeholder options; replace with toggles/inputs. |
-| **About** | Uses `appName` and keybindings. |
-| **Quit** | Exit the app. |
-
-Remove or rename by editing constants, `menuItems`, and the switch cases in the key handlers and `View()`.
-
----
-
-## Build
+## Run
 
 ```bash
-go build -o my-tui .
-./my-tui
+go run .
 ```
 
----
+Launch from inside a Git repository directory.
+
+## Controls
+
+- `up/down` or `j/k`: move commit selection
+- `d`: toggle diff preview panel
+- `r`: refresh immediately
+- `q` or `Ctrl+C`: quit
+
+## Build and Release
+
+This project includes a `Makefile` with common tasks:
+
+```bash
+make build
+make release
+make clean
+```
+
+- `build`: local build to `bin/commitview`
+- `release`: cross-platform binaries in `dist/`
+  - `commitview-linux-amd64`
+  - `commitview-darwin-amd64`
+  - `commitview-darwin-arm64`
+  - `commitview-windows-amd64.exe`
+- `clean`: remove `bin/` and `dist/`
+
+## Project Structure
+
+- `main.go`: app bootstrap
+- `git/`: git command execution and parsing
+- `model/`: Bubble Tea state management and polling loop
+- `ui/`: terminal rendering/layout
+
+## Notes
+
+- Refresh interval is currently set to 3 seconds in `model/model.go`.
+- Remote tracking assumes `origin/main`.
 
 ## License
 
-This project is licensed under the **MIT License** — see [LICENSE](LICENSE) for details.
+This project is licensed under the **MIT License** - see [LICENSE](LICENSE).
