@@ -11,17 +11,20 @@ import (
 )
 
 type Commit struct {
-	Hash    string
-	Author  string
-	Message string
-	Time    string
-	When    time.Time
+	Hash        string
+	Author      string
+	AuthorEmail string
+	Refs        string
+	Message     string
+	Time        string
+	When        time.Time
 }
 
 type Snapshot struct {
 	Branch          string
 	Status          string
 	Commits         []Commit
+	CurrentAuthor   string
 	RemoteStatus    string
 	CommitsBehind   int
 	CommitsAhead    int
@@ -40,9 +43,12 @@ func IsGitRepo(repoPath string) error {
 	return nil
 }
 
-func CollectSnapshot(repoPath string, limit int) Snapshot {
+func CollectSnapshot(repoPath string, remoteName string, limit int) Snapshot {
 	s := Snapshot{
 		LastRefresh: time.Now(),
+	}
+	if strings.TrimSpace(remoteName) == "" {
+		remoteName = "origin"
 	}
 
 	if err := IsGitRepo(repoPath); err != nil {
@@ -74,19 +80,12 @@ func CollectSnapshot(repoPath string, limit int) Snapshot {
 		return s
 	}
 	s.Commits = commits
+	s.CurrentAuthor = currentAuthor(repoPath)
 
-	upstream, err := currentUpstream(repoPath)
-	if err != nil {
-		s.RemoteTrackName = "none"
-		s.RemoteStatus = "no upstream for current branch"
-		return s
-	}
-	s.RemoteTrackName = upstream
-
-	remoteName := strings.SplitN(upstream, "/", 2)[0]
+	s.RemoteTrackName = remoteName + "/" + s.Branch
 	_ = fetchRemote(repoPath, remoteName)
 
-	ahead, behind, err := aheadBehind(repoPath, upstream)
+	ahead, behind, err := aheadBehind(repoPath, s.RemoteTrackName)
 	if err != nil {
 		s.RemoteStatus = "remote unavailable"
 	} else {
@@ -115,16 +114,12 @@ func CollectSnapshot(repoPath string, limit int) Snapshot {
 	return s
 }
 
-func currentUpstream(repoPath string) (string, error) {
-	out, err := run(repoPath, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
+func currentAuthor(repoPath string) string {
+	out, err := run(repoPath, "config", "user.name")
 	if err != nil {
-		return "", err
+		return ""
 	}
-	upstream := strings.TrimSpace(out)
-	if upstream == "" {
-		return "", errors.New("no upstream")
-	}
-	return upstream, nil
+	return strings.TrimSpace(out)
 }
 
 func fetchRemote(repoPath, remoteName string) error {
@@ -170,7 +165,7 @@ func ShowCommit(repoPath, hash string) string {
 }
 
 func listCommits(repoPath string, limit int) ([]Commit, error) {
-	args := []string{"log", "--pretty=format:%h|%an|%ar|%at|%s"}
+	args := []string{"log", "--decorate=short", "--pretty=format:%h|%an|%ae|%ar|%at|%d|%s"}
 	if limit > 0 {
 		args = append(args, fmt.Sprintf("-%d", limit))
 	}
@@ -189,17 +184,19 @@ func listCommits(repoPath string, limit int) ([]Commit, error) {
 	lines := strings.Split(strings.TrimSpace(out), "\n")
 	commits := make([]Commit, 0, len(lines))
 	for _, line := range lines {
-		parts := strings.SplitN(line, "|", 5)
-		if len(parts) != 5 {
+		parts := strings.SplitN(line, "|", 7)
+		if len(parts) != 7 {
 			continue
 		}
-		epoch, _ := strconv.ParseInt(parts[3], 10, 64)
+		epoch, _ := strconv.ParseInt(parts[4], 10, 64)
 		commits = append(commits, Commit{
-			Hash:    parts[0],
-			Author:  parts[1],
-			Time:    parts[2],
-			When:    time.Unix(epoch, 0),
-			Message: parts[4],
+			Hash:        parts[0],
+			Author:      parts[1],
+			AuthorEmail: parts[2],
+			Time:        parts[3],
+			When:        time.Unix(epoch, 0),
+			Refs:        strings.TrimSpace(parts[5]),
+			Message:     parts[6],
 		})
 	}
 	return commits, nil

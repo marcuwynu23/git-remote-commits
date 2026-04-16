@@ -4,8 +4,8 @@ import (
 	"os"
 	"time"
 
-	"tuiapp/git"
-	"tuiapp/ui"
+	"git-remote-commits/git"
+	"git-remote-commits/ui"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -20,10 +20,12 @@ type snapshotMsg git.Snapshot
 
 type Model struct {
 	RepoPath        string
+	RemoteName      string
 	RefreshInterval time.Duration
 	Width           int
 	Height          int
 	Selected        int
+	Loaded          bool
 	Quitting        bool
 
 	Snapshot      git.Snapshot
@@ -31,14 +33,18 @@ type Model struct {
 	NewCommitHash map[string]struct{}
 }
 
-func Initial() Model {
+func Initial(remoteName string) Model {
 	wd, err := os.Getwd()
 	if err != nil {
 		wd = "."
 	}
+	if remoteName == "" {
+		remoteName = "origin"
+	}
 
 	return Model{
 		RepoPath:        wd,
+		RemoteName:      remoteName,
 		RefreshInterval: defaultRefresh,
 		KnownHashes:     make(map[string]struct{}),
 		NewCommitHash:   make(map[string]struct{}),
@@ -89,6 +95,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m *Model) applySnapshot(s git.Snapshot) {
 	m.Snapshot = s
+	m.Loaded = true
 	m.NewCommitHash = make(map[string]struct{})
 
 	for _, c := range s.Commits {
@@ -123,7 +130,7 @@ func (m Model) tickCmd() tea.Cmd {
 
 func (m Model) pollCmd() tea.Cmd {
 	return func() tea.Msg {
-		s := git.CollectSnapshot(m.RepoPath, commitLimit)
+		s := git.CollectSnapshot(m.RepoPath, m.RemoteName, commitLimit)
 		return snapshotMsg(s)
 	}
 }
@@ -136,6 +143,7 @@ func (m Model) View() string {
 		Width:         m.Width,
 		Height:        m.Height,
 		Selected:      m.Selected,
+		Loaded:        m.Loaded,
 		NewCommitHash: m.NewCommitHash,
 		Snapshot:      m.Snapshot,
 	})
