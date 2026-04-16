@@ -33,6 +33,7 @@ type Model struct {
 	Refreshing      bool
 	PendingRefresh  bool
 	ShowCommitPanel bool
+	ShowHelp        bool
 	PanelScroll     int
 	Quitting        bool
 
@@ -101,10 +102,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.ShowHelp {
+		switch msg.String() {
+		case "q", "ctrl+c":
+			m.Quitting = true
+			return m, tea.Quit
+		case "?", "h", "H":
+			m.ShowHelp = false
+			return m, nil
+		default:
+			return m, nil
+		}
+	}
+
 	switch msg.String() {
 	case "q", "ctrl+c":
 		m.Quitting = true
 		return m, tea.Quit
+	case "?", "h", "H":
+		m.ShowHelp = true
+		return m, nil
 	case "up", "k":
 		if m.Selected > 0 {
 			m.Selected--
@@ -278,6 +295,7 @@ func (m Model) View() string {
 		Loaded:          m.Loaded,
 		Refreshing:      m.Refreshing,
 		ShowCommitPanel: m.ShowCommitPanel,
+		ShowHelp:        m.ShowHelp,
 		PanelScroll:     m.PanelScroll,
 		NewCommitHash:   m.NewCommitHash,
 		Snapshot:        m.Snapshot,
