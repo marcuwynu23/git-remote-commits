@@ -12,7 +12,7 @@ import (
 
 const (
 	defaultRefresh = 3 * time.Second
-	commitLimit    = 20
+	commitLimit    = 0
 )
 
 type tickMsg time.Time

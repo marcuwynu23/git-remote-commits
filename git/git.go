@@ -109,12 +109,11 @@ func ShowCommit(repoPath, hash string) string {
 }
 
 func listCommits(repoPath string, limit int) ([]Commit, error) {
-	out, err := run(
-		repoPath,
-		"log",
-		fmt.Sprintf("-%d", limit),
-		"--pretty=format:%h|%an|%ar|%at|%s",
-	)
+	args := []string{"log", "--pretty=format:%h|%an|%ar|%at|%s"}
+	if limit > 0 {
+		args = append(args, fmt.Sprintf("-%d", limit))
+	}
+	out, err := run(repoPath, args...)
 	if err != nil {
 		if strings.Contains(err.Error(), "does not have any commits") {
 			return []Commit{}, nil
