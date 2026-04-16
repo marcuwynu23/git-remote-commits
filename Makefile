@@ -21,7 +21,11 @@ else
 	RM_DIR := rm -rf $(1)
 endif
 
-.PHONY: build release shortcut clean
+.PHONY: test build release shortcut clean
+
+test:
+	@echo "Running tests..."
+	@go test ./...
 
 build:
 	@echo "Building $(APP_NAME) for $(CURRENT_OS)..."
