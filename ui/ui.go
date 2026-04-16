@@ -25,6 +25,20 @@ var (
 	titleStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#22C55E"))
 	metaStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#9CA3AF"))
 	errStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#F87171")).Bold(true)
+	labelStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#94A3B8"))
+	chipStyle  = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#E5E7EB")).
+			Background(lipgloss.Color("#1F2937")).
+			Padding(0, 1)
+	chipGoodStyle = chipStyle.Copy().
+			Foreground(lipgloss.Color("#052E16")).
+			Background(lipgloss.Color("#86EFAC"))
+	chipWarnStyle = chipStyle.Copy().
+			Foreground(lipgloss.Color("#3F2A00")).
+			Background(lipgloss.Color("#FCD34D"))
+	chipInfoStyle = chipStyle.Copy().
+			Foreground(lipgloss.Color("#082F49")).
+			Background(lipgloss.Color("#93C5FD"))
 	selected   = lipgloss.NewStyle().Background(lipgloss.Color("#312E81"))
 	freshStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#4ADE80"))
 	hashStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#FACC15"))
@@ -44,13 +58,10 @@ func Render(v ViewData) string {
 	mainHeight := max(outerHeight-frameH, 1)
 
 	header := titleStyle.Render("git remote-commits")
-	statusLine := fmt.Sprintf("Branch: %s | Status: %s", emptyFallback(v.Snapshot.Branch, "-"), emptyFallback(v.Snapshot.Status, "-"))
+	statusLine := renderHeaderLine(v)
 	footer := metaStyle.Render("Loading repository data...")
 	if v.Loaded {
-		remote := fmt.Sprintf("Remote: %s", emptyFallback(v.Snapshot.RemoteTrackName, "none"))
-		remoteStatus := fmt.Sprintf("Sync: %s", emptyFallback(v.Snapshot.RemoteStatus, "checking remote..."))
-		refresh := fmt.Sprintf("Refresh: %s", v.Snapshot.LastRefresh.Format(time.Kitchen))
-		footer = metaStyle.Render(strings.Join([]string{remote, remoteStatus, refresh}, " | "))
+		footer = renderFooterLine(v)
 	}
 
 	// Keep the panel height stable by giving commits only the remaining viewport lines.
@@ -160,6 +171,48 @@ func renderLoading(width int, height int) string {
 		freshStyle.Render(bar),
 	)
 	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, loading)
+}
+
+func renderHeaderLine(v ViewData) string {
+	branch := chipInfoStyle.Render(emptyFallback(v.Snapshot.Branch, "-"))
+	statusText := emptyFallback(v.Snapshot.Status, "-")
+	statusChip := chipStyle.Render(statusText)
+	if strings.EqualFold(statusText, "clean") {
+		statusChip = chipGoodStyle.Render(statusText)
+	} else if strings.EqualFold(statusText, "dirty") {
+		statusChip = chipWarnStyle.Render(statusText)
+	}
+	return lipgloss.JoinHorizontal(
+		lipgloss.Left,
+		labelStyle.Render("Branch "),
+		branch,
+		"  ",
+		labelStyle.Render("Status "),
+		statusChip,
+	)
+}
+
+func renderFooterLine(v ViewData) string {
+	remote := chipInfoStyle.Render(emptyFallback(v.Snapshot.RemoteTrackName, "none"))
+	syncText := emptyFallback(v.Snapshot.RemoteStatus, "checking remote...")
+	syncChip := chipStyle.Render(syncText)
+	if strings.EqualFold(syncText, "up to date") {
+		syncChip = chipGoodStyle.Render(syncText)
+	} else if strings.Contains(strings.ToLower(syncText), "behind") || strings.Contains(strings.ToLower(syncText), "diverged") {
+		syncChip = chipWarnStyle.Render(syncText)
+	}
+	refresh := chipStyle.Render(v.Snapshot.LastRefresh.Format(time.Kitchen))
+	return lipgloss.JoinHorizontal(
+		lipgloss.Left,
+		labelStyle.Render("Remote "),
+		remote,
+		"  ",
+		labelStyle.Render("Sync "),
+		syncChip,
+		"  ",
+		labelStyle.Render("Refresh "),
+		refresh,
+	)
 }
 
 func commitRefsLabel(raw string) string {
