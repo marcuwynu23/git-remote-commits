@@ -110,13 +110,13 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.Selected--
 			m.PanelScroll = 0
 		}
-		return m, nil
+		return m.withSelectedDiff(), nil
 	case "down", "j":
 		if m.Selected < len(m.Snapshot.Commits)-1 {
 			m.Selected++
 			m.PanelScroll = 0
 		}
-		return m, nil
+		return m.withSelectedDiff(), nil
 	case "pgup":
 		if m.ShowCommitPanel {
 			m.PanelScroll -= 5
@@ -166,7 +166,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "p", "P":
 		m.ShowCommitPanel = !m.ShowCommitPanel
 		m.PanelScroll = 0
-		return m, nil
+		return m.withSelectedDiff(), nil
 	}
 	return m, nil
 }
@@ -214,7 +214,26 @@ func (m *Model) applySnapshot(s git.Snapshot) bool {
 	if m.PanelScroll < 0 {
 		m.PanelScroll = 0
 	}
+	*m = m.withSelectedDiff()
 	return !firstLoad && newCount > 0
+}
+
+func (m Model) withSelectedDiff() Model {
+	if len(m.Snapshot.Commits) == 0 {
+		m.Snapshot.SelectedHash = ""
+		m.Snapshot.SelectedDiff = ""
+		return m
+	}
+	if m.Selected < 0 {
+		m.Selected = 0
+	}
+	if m.Selected >= len(m.Snapshot.Commits) {
+		m.Selected = len(m.Snapshot.Commits) - 1
+	}
+	hash := m.Snapshot.Commits[m.Selected].Hash
+	m.Snapshot.SelectedHash = hash
+	m.Snapshot.SelectedDiff = git.ShowCommit(m.RepoPath, hash)
+	return m
 }
 
 func (m Model) tickCmd() tea.Cmd {
