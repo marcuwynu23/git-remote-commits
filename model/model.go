@@ -28,6 +28,8 @@ type Model struct {
 	Height          int
 	Selected        int
 	Loaded          bool
+	Refreshing      bool
+	PendingRefresh  bool
 	Quitting        bool
 
 	Snapshot      git.Snapshot
@@ -48,6 +50,7 @@ func Initial(remoteName string) Model {
 		RepoPath:        wd,
 		RemoteName:      remoteName,
 		RefreshInterval: defaultRefresh,
+		Refreshing:      true,
 		KnownHashes:     make(map[string]struct{}),
 		NewCommitHash:   make(map[string]struct{}),
 	}
@@ -66,13 +69,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		return m.handleKey(v)
 	case snapshotMsg:
+		m.Refreshing = false
 		shouldRing := m.applySnapshot(git.Snapshot(v))
+		cmds := make([]tea.Cmd, 0, 3)
 		if shouldRing {
-			return m, tea.Batch(m.tickCmd(), bellCmd())
+			cmds = append(cmds, bellCmd())
 		}
-		return m, m.tickCmd()
+		if m.PendingRefresh {
+			m.PendingRefresh = false
+			m.Refreshing = true
+			cmds = append(cmds, m.pollCmd())
+		}
+		return m, tea.Batch(cmds...)
 	case tickMsg:
-		return m, m.pollCmd()
+		if m.Refreshing {
+			return m, m.tickCmd()
+		}
+		m.Refreshing = true
+		return m, tea.Batch(m.tickCmd(), m.pollCmd())
 	}
 	return m, nil
 }
@@ -93,6 +107,11 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case "r":
+		if m.Refreshing {
+			m.PendingRefresh = true
+			return m, nil
+		}
+		m.Refreshing = true
 		return m, m.pollCmd()
 	}
 	return m, nil
