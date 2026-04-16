@@ -170,15 +170,12 @@ func renderCommitList(v ViewData, width int, height int) string {
 			refStyle.Render(refsText) + "  " +
 			authorText + "  " +
 			msgStyle.Render(msgText)
-		if !r.isNew {
-			row = "  " + row
-		}
 
 		if i == v.Selected {
 			lines = append(lines, selected.Render("> "+row))
 			continue
 		}
-		lines = append(lines, "  "+row)
+		lines = append(lines, row)
 	}
 	return strings.Join(lines, "\n")
 }
