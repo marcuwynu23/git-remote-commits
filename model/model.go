@@ -3,6 +3,7 @@ package model
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"git-remote-commits/git"
@@ -149,6 +150,7 @@ func (m Model) View() string {
 	return ui.Render(ui.ViewData{
 		Width:         m.Width,
 		Height:        m.Height,
+		RepoName:      filepath.Base(m.RepoPath),
 		Selected:      m.Selected,
 		Loaded:        m.Loaded,
 		NewCommitHash: m.NewCommitHash,
