@@ -166,9 +166,16 @@ func renderCommitPanel(v ViewData, width int, height int) string {
 		bodyLines = wrapLines(bodyRaw, viewportWidth)
 	}
 
+	currentAuthor := strings.TrimSpace(v.Snapshot.CurrentAuthor)
+	authorRaw := emptyFallback(formatAuthorLabel(c.Author, c.AuthorEmail), "-")
+	authorStyled := authorElse.Render(authorRaw)
+	if currentAuthor != "" && strings.EqualFold(strings.TrimSpace(c.Author), currentAuthor) {
+		authorStyled = authorMe.Render(authorRaw)
+	}
+
 	lines := []string{
-		labelStyle.Render("Hash  ") + hashStyle.Render(emptyFallback(c.Hash, "-")),
-		labelStyle.Render("Author") + " " + msgStyle.Render(emptyFallback(formatAuthorLabel(c.Author, c.AuthorEmail), "-")),
+		labelStyle.Render("Hash  ") + " " + hashStyle.Render(emptyFallback(c.Hash, "-")),
+		labelStyle.Render("Author") + " " + authorStyled,
 		labelStyle.Render("When  ") + " " + metaStyle.Render(emptyFallback(when, "-")),
 		labelStyle.Render("Refs  ") + " " + refStyle.Render(emptyFallback(commitRefsLabel(c.Refs), "-")),
 		"",
