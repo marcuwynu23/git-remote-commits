@@ -133,9 +133,12 @@ func Render(v ViewData) string {
 	content := lipgloss.JoinVertical(lipgloss.Left, sections...)
 
 	panel := frameStyle.Width(mainWidth).Height(mainHeight).Render(content)
-	help := helpStyle.Width(outerWidth).Render("↑ ↓ j k [ ] u d PgUp PgDn p r g G Home End ? h q")
-	jumpHelp := helpStyle.Width(outerWidth).Render("Ctrl+U Ctrl+D Ctrl+C")
-	return lipgloss.JoinVertical(lipgloss.Left, panel, help, jumpHelp)
+	footerLines := renderShortcutFooterLines(outerWidth)
+	footerStyled := make([]string, 0, len(footerLines))
+	for _, line := range footerLines {
+		footerStyled = append(footerStyled, helpStyle.Width(outerWidth).Render(line))
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, append([]string{panel}, footerStyled...)...)
 }
 
 func renderHelpView(width int, height int) string {
@@ -306,6 +309,39 @@ func wrapLines(text string, width int) []string {
 		out = append(out, string(runes))
 	}
 	return out
+}
+
+func renderShortcutFooterLines(width int) []string {
+	width = max(width, 20)
+	groups := []string{
+		"[up/j | down/k]",
+		"[PgUp/u | PgDn/d]",
+		"[[ | ] line]",
+		"[g/Home | G/End]",
+		"[p]",
+		"[r]",
+		"[?/h]",
+		"[q/Ctrl+C]",
+		"[Ctrl+U | Ctrl+D]",
+	}
+	lines := make([]string, 0, 3)
+	current := ""
+	for _, group := range groups {
+		next := group
+		if current != "" {
+			next = current + "  " + group
+		}
+		if len([]rune(next)) > width && current != "" {
+			lines = append(lines, current)
+			current = group
+			continue
+		}
+		current = next
+	}
+	if current != "" {
+		lines = append(lines, current)
+	}
+	return lines
 }
 
 func renderMarkdownLines(md string, width int) []string {
