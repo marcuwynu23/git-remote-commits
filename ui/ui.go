@@ -161,7 +161,7 @@ func renderCommitList(v ViewData, width int, height int) string {
 
 		marker := "  "
 		if r.isNew {
-			marker = freshStyle.Render("N ")
+			marker = freshStyle.Render("● ")
 		}
 
 		row := marker +
@@ -170,9 +170,7 @@ func renderCommitList(v ViewData, width int, height int) string {
 			refStyle.Render(refsText) + "  " +
 			authorText + "  " +
 			msgStyle.Render(msgText)
-		if r.isNew {
-			row = freshStyle.Render("● ") + row
-		} else {
+		if !r.isNew {
 			row = "  " + row
 		}
 
