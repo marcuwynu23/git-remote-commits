@@ -1,6 +1,6 @@
-# commitview
+# git-remote-commits
 
-`commitview` is a terminal UI that monitors Git activity in real time, like an `htop`-style dashboard for repository commits.
+`git-remote-commits` is a terminal UI that monitors Git activity in real time, like an `htop`-style dashboard for repository commits.
 
 Built with [Bubble Tea](https://github.com/charmbracelet/bubbletea) and [Lip Gloss](https://github.com/charmbracelet/lipgloss).
 
@@ -22,9 +22,11 @@ Built with [Bubble Tea](https://github.com/charmbracelet/bubbletea) and [Lip Glo
 
 ```bash
 go run .
+go run . origin
+go run . --help
 ```
 
-Launch from inside a Git repository directory.
+Launch from inside a Git repository directory. The optional `remote` argument defaults to `origin`.
 
 ## Controls
 
@@ -42,12 +44,12 @@ make release
 make clean
 ```
 
-- `build`: local build to `bin/commitview`
+- `build`: local build to `bin/git-remote-commits`
 - `release`: cross-platform binaries in `dist/`
-  - `commitview-linux-amd64`
-  - `commitview-darwin-amd64`
-  - `commitview-darwin-arm64`
-  - `commitview-windows-amd64.exe`
+  - `git-remote-commits-linux-amd64`
+  - `git-remote-commits-darwin-amd64`
+  - `git-remote-commits-darwin-arm64`
+  - `git-remote-commits-windows-amd64.exe`
 - `clean`: remove `bin/` and `dist/`
 
 ## Project Structure

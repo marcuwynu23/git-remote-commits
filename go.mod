@@ -1,4 +1,4 @@
-module tuiapp
+module git-remote-commits
 
 go 1.18
 

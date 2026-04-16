@@ -1,6 +1,8 @@
-APP_NAME := commitview
+APP_NAME := git-remote-commits
 BUILD_DIR := bin
 RELEASE_DIR := dist
+SHORTCUT_DIR_WIN := C:/Bin/git-remote-commits
+SHORTCUT_EXE_WIN := $(SHORTCUT_DIR_WIN)/$(APP_NAME).exe
 
 ifeq ($(OS),Windows_NT)
 	CURRENT_OS := windows
@@ -19,7 +21,7 @@ else
 	RM_DIR := rm -rf $(1)
 endif
 
-.PHONY: build release clean
+.PHONY: build release shortcut clean
 
 build:
 	@echo "Building $(APP_NAME) for $(CURRENT_OS)..."
@@ -33,6 +35,17 @@ release:
 	@GOOS=darwin GOARCH=amd64 go build -o $(RELEASE_DIR)/$(APP_NAME)-darwin-amd64 .
 	@GOOS=darwin GOARCH=arm64 go build -o $(RELEASE_DIR)/$(APP_NAME)-darwin-arm64 .
 	@GOOS=windows GOARCH=amd64 go build -o $(RELEASE_DIR)/$(APP_NAME)-windows-amd64.exe .
+
+shortcut:
+ifeq ($(OS),Windows_NT)
+	@echo "Building Windows shortcut binary at $(SHORTCUT_EXE_WIN)..."
+	@powershell -NoProfile -Command "New-Item -ItemType Directory -Force '$(SHORTCUT_DIR_WIN)' | Out-Null"
+	@go build -o $(SHORTCUT_EXE_WIN) .
+	@echo "Done: $(SHORTCUT_EXE_WIN)"
+else
+	@echo "shortcut target is supported only on Windows."
+	@exit 1
+endif
 
 clean:
 	@echo "Cleaning build and release directories..."
