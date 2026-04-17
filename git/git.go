@@ -2,6 +2,7 @@ package git
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os/exec"
@@ -65,7 +66,11 @@ func CollectSnapshot(repoPath string, remoteName string, limit int) Snapshot {
 	}
 	s.Branch = strings.TrimSpace(branch)
 
-	pullErr := pullRemoteBranch(repoPath, remoteName, s.Branch)
+	remoteOnline := isRemoteReachable(repoPath, remoteName)
+	var pullErr error
+	if remoteOnline {
+		pullErr = pullRemoteBranch(repoPath, remoteName, s.Branch)
+	}
 
 	porcelain, err := run(repoPath, "status", "--porcelain")
 	if err != nil {
@@ -89,7 +94,9 @@ func CollectSnapshot(repoPath string, remoteName string, limit int) Snapshot {
 
 	s.RemoteTrackName = remoteName + "/" + s.Branch
 	ahead, behind, err := aheadBehind(repoPath, s.RemoteTrackName)
-	if pullErr != nil {
+	if !remoteOnline {
+		s.RemoteStatus = "offline"
+	} else if pullErr != nil {
 		s.RemoteStatus = "pull failed: " + pullErr.Error()
 	} else if err != nil {
 		s.RemoteStatus = "remote unavailable"
@@ -184,8 +191,16 @@ func pullRemoteBranch(repoPath, remoteName, branch string) error {
 	if strings.TrimSpace(branch) == "" {
 		return errors.New("branch name required")
 	}
-	_, err := run(repoPath, "pull", remoteName, branch)
+	_, err := runWithTimeout(8*time.Second, repoPath, "pull", remoteName, branch)
 	return err
+}
+
+func isRemoteReachable(repoPath, remoteName string) bool {
+	if strings.TrimSpace(remoteName) == "" {
+		return false
+	}
+	_, err := runWithTimeout(3*time.Second, repoPath, "ls-remote", "--exit-code", remoteName, "HEAD")
+	return err == nil
 }
 
 func aheadBehind(repoPath, upstream string) (ahead int, behind int, err error) {
@@ -289,6 +304,30 @@ func run(repoPath string, args ...string) (string, error) {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
+		msg := strings.TrimSpace(stderr.String())
+		if msg == "" {
+			msg = err.Error()
+		}
+		return "", fmt.Errorf("%s", msg)
+	}
+	return stdout.String(), nil
+}
+
+func runWithTimeout(timeout time.Duration, repoPath string, args ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "git", args...)
+	cmd.Dir = repoPath
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return "", errors.New("timed out while contacting remote")
+		}
 		msg := strings.TrimSpace(stderr.String())
 		if msg == "" {
 			msg = err.Error()
