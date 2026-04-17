@@ -9,7 +9,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 )
-
 var Version = "dev"
 
 func main() {
