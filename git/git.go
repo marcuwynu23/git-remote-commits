@@ -66,7 +66,7 @@ func CollectSnapshot(repoPath string, remoteName string, limit int) Snapshot {
 	}
 	s.Branch = strings.TrimSpace(branch)
 
-	remoteOnline := isRemoteReachable(repoPath, remoteName)
+	remoteOnline, remoteErr := isRemoteReachable(repoPath, remoteName)
 	var pullErr error
 	if remoteOnline {
 		pullErr = pullRemoteBranch(repoPath, remoteName, s.Branch)
@@ -94,13 +94,13 @@ func CollectSnapshot(repoPath string, remoteName string, limit int) Snapshot {
 
 	s.RemoteTrackName = remoteName + "/" + s.Branch
 	ahead, behind, err := aheadBehind(repoPath, s.RemoteTrackName)
-	if !remoteOnline || pullErr != nil {
+	if isNetworkError(remoteErr) || isNetworkError(pullErr) {
 		s.RemoteStatus = "offline"
 	} else {
 		s.RemoteStatus = "online"
 		if err == nil {
-		s.CommitsBehind = behind
-		s.CommitsAhead = ahead
+			s.CommitsBehind = behind
+			s.CommitsAhead = ahead
 		}
 	}
 
@@ -176,12 +176,38 @@ func pullRemoteBranch(repoPath, remoteName, branch string) error {
 	return err
 }
 
-func isRemoteReachable(repoPath, remoteName string) bool {
+func isRemoteReachable(repoPath, remoteName string) (bool, error) {
 	if strings.TrimSpace(remoteName) == "" {
-		return false
+		return false, errors.New("remote name required")
 	}
 	_, err := runWithTimeout(3*time.Second, repoPath, "ls-remote", "--exit-code", remoteName, "HEAD")
-	return err == nil
+	return err == nil, err
+}
+
+func isNetworkError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	networkHints := []string{
+		"timed out",
+		"timeout",
+		"could not resolve host",
+		"no such host",
+		"name or service not known",
+		"temporary failure in name resolution",
+		"network is unreachable",
+		"failed to connect",
+		"connection refused",
+		"unable to access",
+		"couldn't connect",
+	}
+	for _, hint := range networkHints {
+		if strings.Contains(msg, hint) {
+			return true
+		}
+	}
+	return false
 }
 
 func aheadBehind(repoPath, upstream string) (ahead int, behind int, err error) {
