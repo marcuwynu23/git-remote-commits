@@ -13,6 +13,7 @@ import (
 )
 
 type Commit struct {
+	Graph       string
 	Hash        string
 	Author      string
 	AuthorEmail string
@@ -296,7 +297,66 @@ func listCommits(repoPath string, limit int) ([]Commit, error) {
 			Body:        strings.TrimSpace(parts[7]),
 		})
 	}
+
+	graphByHash := commitGraphByHash(repoPath, limit)
+	for i := range commits {
+		if graph, ok := graphByHash[commits[i].Hash]; ok {
+			commits[i].Graph = graph
+		}
+	}
 	return commits, nil
+}
+
+func commitGraphByHash(repoPath string, limit int) map[string]string {
+	args := []string{"log", "--oneline", "--graph"}
+	if limit > 0 {
+		args = append(args, fmt.Sprintf("-%d", limit))
+	}
+	out, err := run(repoPath, args...)
+	if err != nil {
+		return map[string]string{}
+	}
+
+	graphByHash := make(map[string]string)
+	for _, line := range strings.Split(out, "\n") {
+		trimmed := strings.TrimRight(line, "\r")
+		if strings.TrimSpace(trimmed) == "" {
+			continue
+		}
+		fields := strings.Fields(trimmed)
+		if len(fields) == 0 {
+			continue
+		}
+		hash := ""
+		for _, f := range fields {
+			if isHexHashToken(f) {
+				hash = f
+				break
+			}
+		}
+		if hash == "" {
+			continue
+		}
+		idx := strings.Index(trimmed, hash)
+		if idx < 0 {
+			continue
+		}
+		graph := strings.TrimSpace(trimmed[:idx])
+		graphByHash[hash] = graph
+	}
+	return graphByHash
+}
+
+func isHexHashToken(v string) bool {
+	if len(v) < 7 || len(v) > 40 {
+		return false
+	}
+	for _, r := range v {
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 func commitsBehind(repoPath string) (int, error) {
