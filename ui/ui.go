@@ -674,16 +674,22 @@ func renderHeaderLine(v ViewData) string {
 
 func renderFooterLine(v ViewData) string {
 	remote := chipInfoStyle.Render(emptyFallback(v.Snapshot.RemoteTrackName, "none"))
-	syncText := emptyFallback(v.Snapshot.RemoteStatus, "checking remote...")
+	rawRemoteStatus := strings.ToLower(strings.TrimSpace(v.Snapshot.RemoteStatus))
+	syncText := "online"
 	if v.Refreshing {
-		syncText = "refreshing..."
+		syncText = "pending"
+	} else if rawRemoteStatus == "" ||
+		strings.Contains(rawRemoteStatus, "offline") ||
+		strings.Contains(rawRemoteStatus, "unavailable") ||
+		strings.Contains(rawRemoteStatus, "pull failed") {
+		syncText = "offline"
 	}
 	syncChip := chipStyle.Render(syncText)
 	if v.Refreshing {
 		syncChip = chipInfoStyle.Render(syncText)
-	} else if strings.EqualFold(syncText, "up to date") {
+	} else if strings.EqualFold(syncText, "online") {
 		syncChip = chipGoodStyle.Render(syncText)
-	} else if strings.Contains(strings.ToLower(syncText), "behind") || strings.Contains(strings.ToLower(syncText), "diverged") || strings.Contains(strings.ToLower(syncText), "offline") {
+	} else if strings.EqualFold(syncText, "offline") {
 		syncChip = chipWarnStyle.Render(syncText)
 	}
 	refresh := chipStyle.Render(v.Snapshot.LastRefresh.Format(time.Kitchen))

@@ -94,32 +94,13 @@ func CollectSnapshot(repoPath string, remoteName string, limit int) Snapshot {
 
 	s.RemoteTrackName = remoteName + "/" + s.Branch
 	ahead, behind, err := aheadBehind(repoPath, s.RemoteTrackName)
-	if !remoteOnline {
+	if !remoteOnline || pullErr != nil {
 		s.RemoteStatus = "offline"
-	} else if pullErr != nil {
-		s.RemoteStatus = "pull failed: " + pullErr.Error()
-	} else if err != nil {
-		s.RemoteStatus = "remote unavailable"
 	} else {
+		s.RemoteStatus = "online"
+		if err == nil {
 		s.CommitsBehind = behind
 		s.CommitsAhead = ahead
-		switch {
-		case behind == 0 && ahead == 0:
-			s.RemoteStatus = "up to date"
-		case behind > 0 && ahead == 0:
-			if behind == 1 {
-				s.RemoteStatus = "1 commit behind remote"
-			} else {
-				s.RemoteStatus = fmt.Sprintf("%d commits behind remote", behind)
-			}
-		case behind == 0 && ahead > 0:
-			if ahead == 1 {
-				s.RemoteStatus = "1 commit ahead of remote"
-			} else {
-				s.RemoteStatus = fmt.Sprintf("%d commits ahead of remote", ahead)
-			}
-		default:
-			s.RemoteStatus = fmt.Sprintf("%d behind / %d ahead", behind, ahead)
 		}
 	}
 
