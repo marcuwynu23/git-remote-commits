@@ -75,25 +75,18 @@ func Render(v ViewData) string {
 	mainHeight := max(outerHeight-frameH, 1)
 
 	header := ""
-	statusLine := ""
-	footer := ""
 	headerRendered := ""
-	statusRendered := ""
-	footerRendered := ""
+	topLineRendered := ""
 	if v.Loaded {
 		header = titleStyle.Render(fmt.Sprintf("git remote-commits %s", emptyFallback(v.Version, "dev")))
-		statusLine = renderHeaderLine(v)
-		footer = renderFooterLine(v)
 		headerRendered = lipgloss.NewStyle().Width(mainWidth).Render(header)
-		statusRendered = lipgloss.NewStyle().Width(mainWidth).Render(metaStyle.Render(statusLine))
-		footerRendered = lipgloss.NewStyle().Width(mainWidth).Render(footer)
+		topLineRendered = lipgloss.NewStyle().Width(mainWidth).Render(renderTopStatusLine(v, mainWidth))
 	}
 
 	topFixedLines := 0
 	bottomFixedLines := 0
 	if v.Loaded {
-		topFixedLines = lipgloss.Height(headerRendered) + lipgloss.Height(statusRendered) + 1
-		bottomFixedLines = 1 + lipgloss.Height(footerRendered)
+		topFixedLines = lipgloss.Height(headerRendered) + lipgloss.Height(topLineRendered) + 1
 	}
 	availableBody := max(mainHeight-topFixedLines-bottomFixedLines, 1)
 	topHeight := availableBody
@@ -132,16 +125,13 @@ func Render(v ViewData) string {
 	if v.Loaded {
 		sections = append(sections,
 			headerRendered,
-			statusRendered,
+			topLineRendered,
 			"",
 		)
 	}
 	sections = append(sections, body)
 	if showPanel && panelHeight > 0 {
 		sections = append(sections, commitPanel)
-	}
-	if v.Loaded {
-		sections = append(sections, "", footerRendered)
 	}
 	content := lipgloss.JoinVertical(lipgloss.Left, sections...)
 
@@ -151,6 +141,34 @@ func Render(v ViewData) string {
 		footerStyled = append(footerStyled, lipgloss.NewStyle().Width(outerWidth).Render(line))
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, append([]string{panel, ""}, footerStyled...)...)
+}
+
+func renderTopStatusLine(v ViewData, width int) string {
+	parts := []string{
+		renderHeaderLine(v),
+		renderFooterLine(v),
+	}
+	join := func(list []string) string {
+		return lipgloss.JoinHorizontal(lipgloss.Left, strings.Join(list, "  "))
+	}
+	line := join(parts)
+	if lipgloss.Width(line) <= width {
+		return metaStyle.Render(line)
+	}
+
+	// Drop least-critical details as width shrinks.
+	compact := []string{
+		renderHeaderLine(v),
+		renderCompactSyncLine(v),
+	}
+	line = join(compact)
+	if lipgloss.Width(line) <= width {
+		return metaStyle.Render(line)
+	}
+
+	// Keep only sync state in very narrow widths.
+	syncOnly := labelStyle.Render("Sync ") + renderSyncChip(v)
+	return metaStyle.Render(syncOnly)
 }
 
 func renderHelpView(width int, height int) string {
@@ -674,24 +692,7 @@ func renderHeaderLine(v ViewData) string {
 
 func renderFooterLine(v ViewData) string {
 	remote := chipInfoStyle.Render(emptyFallback(v.Snapshot.RemoteTrackName, "none"))
-	rawRemoteStatus := strings.ToLower(strings.TrimSpace(v.Snapshot.RemoteStatus))
-	syncText := "online"
-	if v.Refreshing {
-		syncText = "pending"
-	} else if rawRemoteStatus == "" ||
-		strings.Contains(rawRemoteStatus, "offline") ||
-		strings.Contains(rawRemoteStatus, "unavailable") ||
-		strings.Contains(rawRemoteStatus, "pull failed") {
-		syncText = "offline"
-	}
-	syncChip := chipStyle.Render(syncText)
-	if v.Refreshing {
-		syncChip = chipInfoStyle.Render(syncText)
-	} else if strings.EqualFold(syncText, "online") {
-		syncChip = chipGoodStyle.Render(syncText)
-	} else if strings.EqualFold(syncText, "offline") {
-		syncChip = chipWarnStyle.Render(syncText)
-	}
+	syncChip := renderSyncChip(v)
 	refresh := chipStyle.Render(v.Snapshot.LastRefresh.Format(time.Kitchen))
 	parts := []string{
 		labelStyle.Render("Remote "),
@@ -714,6 +715,39 @@ func renderFooterLine(v ViewData) string {
 		lipgloss.Left,
 		parts...,
 	)
+}
+
+func renderCompactSyncLine(v ViewData) string {
+	return lipgloss.JoinHorizontal(
+		lipgloss.Left,
+		labelStyle.Render("Sync "),
+		renderSyncChip(v),
+		"  ",
+		labelStyle.Render("Refresh "),
+		chipStyle.Render(v.Snapshot.LastRefresh.Format(time.Kitchen)),
+	)
+}
+
+func renderSyncChip(v ViewData) string {
+	rawRemoteStatus := strings.ToLower(strings.TrimSpace(v.Snapshot.RemoteStatus))
+	syncText := "online"
+	if v.Refreshing {
+		syncText = "pending"
+	} else if rawRemoteStatus == "" ||
+		strings.Contains(rawRemoteStatus, "offline") ||
+		strings.Contains(rawRemoteStatus, "unavailable") ||
+		strings.Contains(rawRemoteStatus, "pull failed") {
+		syncText = "offline"
+	}
+	syncChip := chipStyle.Render(syncText)
+	if v.Refreshing {
+		syncChip = chipInfoStyle.Render(syncText)
+	} else if strings.EqualFold(syncText, "online") {
+		syncChip = chipGoodStyle.Render(syncText)
+	} else if strings.EqualFold(syncText, "offline") {
+		syncChip = chipWarnStyle.Render(syncText)
+	}
+	return syncChip
 }
 
 func renderMiniLoadingBar(width int) string {
