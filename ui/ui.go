@@ -638,6 +638,7 @@ func renderCommitList(v ViewData, width int, height int) string {
 
 		row := marker +
 			metaStyle.Render(dateText) + "  " +
+			refStyle.Render(padRight(trimToWidth(emptyFallback(r.commit.Graph, "•"), 4), 4)) + " " +
 			hashStyle.Render(hashText) + "  " +
 			refStyle.Render(refsText) + "  " +
 			authorText + "  " +
