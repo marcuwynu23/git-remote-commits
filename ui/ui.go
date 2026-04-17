@@ -823,16 +823,38 @@ func padRight(s string, w int) string {
 }
 
 func commitColumnWidths(totalWidth int, maxTimeW int, maxRefsW int, maxAuthorW int) (dateW, hashW, refsW, authorW, msgW int) {
-	usable := max(totalWidth-8, 20)
+	// Keep each rendered row within viewport width:
+	// marker(2) + date + "  " + graph(4) + " " + hash + "  " + refs + "  " + author + "  " + message
+	available := max(totalWidth-2, 1) // account for selected-row prefix "> "
+	graphW := 4
 	hashW = 8
-	dateW = max(16, maxTimeW)
-	refsW = max(1, maxRefsW)
-	authorW = max(1, maxAuthorW)
-	separators := 8 // spaces between columns
+	separators := 9 // 2 + 1 + 2 + 2 + 2 between columns including graph gap
+	minDateW := 10
+	minRefsW := 1
+	minAuthorW := 4
+	minMsgW := 6
 
-	msgW = usable - (dateW + hashW + refsW + authorW + separators)
-	if msgW < 0 {
-		msgW = 0
+	dateW = min(max(maxTimeW, minDateW), 22)
+	refsW = min(max(maxRefsW, minRefsW), 24)
+	authorW = min(max(maxAuthorW, minAuthorW), 22)
+
+	fixed := 2 + dateW + graphW + hashW + refsW + authorW + separators
+	msgW = available - fixed
+	for msgW < minMsgW {
+		switch {
+		case authorW > minAuthorW:
+			authorW--
+		case refsW > minRefsW:
+			refsW--
+		case dateW > minDateW:
+			dateW--
+		default:
+			// As a last resort, allow minimal message width.
+			msgW = minMsgW
+			return dateW, hashW, refsW, authorW, msgW
+		}
+		fixed = 2 + dateW + graphW + hashW + refsW + authorW + separators
+		msgW = available - fixed
 	}
 	return dateW, hashW, refsW, authorW, msgW
 }
