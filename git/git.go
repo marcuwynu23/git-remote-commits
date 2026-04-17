@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -66,7 +67,10 @@ func CollectSnapshot(repoPath string, remoteName string, limit int) Snapshot {
 	}
 	s.Branch = strings.TrimSpace(branch)
 
-	remoteOnline, remoteErr := isRemoteReachable(repoPath, remoteName)
+	repoName := remoteRepoName(repoPath, remoteName)
+	s.RepoName = repoName
+
+	remoteOnline := isGitHubOnline(repoName)
 	var pullErr error
 	if remoteOnline {
 		pullErr = pullRemoteBranch(repoPath, remoteName, s.Branch)
@@ -90,11 +94,10 @@ func CollectSnapshot(repoPath string, remoteName string, limit int) Snapshot {
 	}
 	s.Commits = commits
 	s.CurrentAuthor = currentAuthor(repoPath)
-	s.RepoName = remoteRepoName(repoPath, remoteName)
 
 	s.RemoteTrackName = remoteName + "/" + s.Branch
 	ahead, behind, err := aheadBehind(repoPath, s.RemoteTrackName)
-	if isNetworkError(remoteErr) || isNetworkError(pullErr) {
+	if !remoteOnline {
 		s.RemoteStatus = "offline"
 	} else {
 		s.RemoteStatus = "online"
@@ -103,6 +106,7 @@ func CollectSnapshot(repoPath string, remoteName string, limit int) Snapshot {
 			s.CommitsAhead = ahead
 		}
 	}
+	_ = pullErr
 
 	return s
 }
@@ -176,38 +180,45 @@ func pullRemoteBranch(repoPath, remoteName, branch string) error {
 	return err
 }
 
-func isRemoteReachable(repoPath, remoteName string) (bool, error) {
-	if strings.TrimSpace(remoteName) == "" {
-		return false, errors.New("remote name required")
+func isGitHubOnline(repoName string) bool {
+	repoPath, ok := githubRepoPath(repoName)
+	if !ok {
+		// If the remote isn't GitHub, probe GitHub API availability directly.
+		repoPath = "octocat/Hello-World"
 	}
-	_, err := runWithTimeout(3*time.Second, repoPath, "ls-remote", "--exit-code", remoteName, "HEAD")
-	return err == nil, err
-}
 
-func isNetworkError(err error) bool {
-	if err == nil {
+	client := &http.Client{Timeout: 3 * time.Second}
+	req, err := http.NewRequest(http.MethodGet, "https://api.github.com/repos/"+repoPath, nil)
+	if err != nil {
 		return false
 	}
-	msg := strings.ToLower(err.Error())
-	networkHints := []string{
-		"timed out",
-		"timeout",
-		"could not resolve host",
-		"no such host",
-		"name or service not known",
-		"temporary failure in name resolution",
-		"network is unreachable",
-		"failed to connect",
-		"connection refused",
-		"unable to access",
-		"couldn't connect",
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("User-Agent", "git-remote-commits")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return false
 	}
-	for _, hint := range networkHints {
-		if strings.Contains(msg, hint) {
-			return true
-		}
+	defer resp.Body.Close()
+
+	// Any HTTP response means we can reach GitHub (online), even if the repo is private/missing.
+	return true
+}
+
+func githubRepoPath(repoName string) (string, bool) {
+	repoName = strings.TrimSpace(strings.TrimSuffix(repoName, ".git"))
+	if repoName == "" {
+		return "", false
 	}
-	return false
+	if !strings.HasPrefix(strings.ToLower(repoName), "github.com/") {
+		return "", false
+	}
+	path := strings.TrimPrefix(repoName, "github.com/")
+	parts := strings.Split(path, "/")
+	if len(parts) < 2 || strings.TrimSpace(parts[0]) == "" || strings.TrimSpace(parts[1]) == "" {
+		return "", false
+	}
+	return parts[0] + "/" + parts[1], true
 }
 
 func aheadBehind(repoPath, upstream string) (ahead int, behind int, err error) {
