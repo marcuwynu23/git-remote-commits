@@ -683,7 +683,7 @@ func renderFooterLine(v ViewData) string {
 		syncChip = chipInfoStyle.Render(syncText)
 	} else if strings.EqualFold(syncText, "up to date") {
 		syncChip = chipGoodStyle.Render(syncText)
-	} else if strings.Contains(strings.ToLower(syncText), "behind") || strings.Contains(strings.ToLower(syncText), "diverged") {
+	} else if strings.Contains(strings.ToLower(syncText), "behind") || strings.Contains(strings.ToLower(syncText), "diverged") || strings.Contains(strings.ToLower(syncText), "offline") {
 		syncChip = chipWarnStyle.Render(syncText)
 	}
 	refresh := chipStyle.Render(v.Snapshot.LastRefresh.Format(time.Kitchen))
