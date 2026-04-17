@@ -11,17 +11,22 @@ import (
 )
 
 type Commit struct {
-	Hash    string
-	Author  string
-	Message string
-	Time    string
-	When    time.Time
+	Hash        string
+	Author      string
+	AuthorEmail string
+	Refs        string
+	Message     string
+	Body        string
+	Time        string
+	When        time.Time
 }
 
 type Snapshot struct {
+	RepoName        string
 	Branch          string
 	Status          string
 	Commits         []Commit
+	CurrentAuthor   string
 	RemoteStatus    string
 	CommitsBehind   int
 	CommitsAhead    int
@@ -40,9 +45,12 @@ func IsGitRepo(repoPath string) error {
 	return nil
 }
 
-func CollectSnapshot(repoPath string, limit int) Snapshot {
+func CollectSnapshot(repoPath string, remoteName string, limit int) Snapshot {
 	s := Snapshot{
 		LastRefresh: time.Now(),
+	}
+	if strings.TrimSpace(remoteName) == "" {
+		remoteName = "origin"
 	}
 
 	if err := IsGitRepo(repoPath); err != nil {
@@ -56,6 +64,8 @@ func CollectSnapshot(repoPath string, limit int) Snapshot {
 		return s
 	}
 	s.Branch = strings.TrimSpace(branch)
+
+	pullErr := pullRemoteBranch(repoPath, remoteName, s.Branch)
 
 	porcelain, err := run(repoPath, "status", "--porcelain")
 	if err != nil {
@@ -74,20 +84,14 @@ func CollectSnapshot(repoPath string, limit int) Snapshot {
 		return s
 	}
 	s.Commits = commits
+	s.CurrentAuthor = currentAuthor(repoPath)
+	s.RepoName = remoteRepoName(repoPath, remoteName)
 
-	upstream, err := currentUpstream(repoPath)
-	if err != nil {
-		s.RemoteTrackName = "none"
-		s.RemoteStatus = "no upstream for current branch"
-		return s
-	}
-	s.RemoteTrackName = upstream
-
-	remoteName := strings.SplitN(upstream, "/", 2)[0]
-	_ = fetchRemote(repoPath, remoteName)
-
-	ahead, behind, err := aheadBehind(repoPath, upstream)
-	if err != nil {
+	s.RemoteTrackName = remoteName + "/" + s.Branch
+	ahead, behind, err := aheadBehind(repoPath, s.RemoteTrackName)
+	if pullErr != nil {
+		s.RemoteStatus = "pull failed: " + pullErr.Error()
+	} else if err != nil {
 		s.RemoteStatus = "remote unavailable"
 	} else {
 		s.CommitsBehind = behind
@@ -115,16 +119,54 @@ func CollectSnapshot(repoPath string, limit int) Snapshot {
 	return s
 }
 
-func currentUpstream(repoPath string) (string, error) {
-	out, err := run(repoPath, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
+func remoteRepoName(repoPath, remoteName string) string {
+	if strings.TrimSpace(remoteName) == "" {
+		return ""
+	}
+	out, err := run(repoPath, "remote", "get-url", remoteName)
 	if err != nil {
-		return "", err
+		return ""
 	}
-	upstream := strings.TrimSpace(out)
-	if upstream == "" {
-		return "", errors.New("no upstream")
+	url := strings.TrimSpace(out)
+	if url == "" {
+		return ""
 	}
-	return upstream, nil
+	url = strings.TrimSuffix(url, ".git")
+
+	// SSH format: git@github.com:owner/repo
+	if strings.Contains(url, "@") && strings.Contains(url, ":") && !strings.Contains(url, "://") {
+		parts := strings.SplitN(url, ":", 2)
+		host := parts[0]
+		path := parts[1]
+		host = strings.TrimPrefix(host, "git@")
+		path = strings.TrimPrefix(path, "/")
+		if host != "" && path != "" {
+			return host + "/" + path
+		}
+	}
+
+	// HTTPS/SSH URL format: scheme://host/owner/repo
+	if i := strings.Index(url, "://"); i >= 0 {
+		rest := url[i+3:]
+		slash := strings.Index(rest, "/")
+		if slash > 0 && slash < len(rest)-1 {
+			host := rest[:slash]
+			path := strings.TrimPrefix(rest[slash+1:], "/")
+			if host != "" && path != "" {
+				return host + "/" + path
+			}
+		}
+	}
+
+	return url
+}
+
+func currentAuthor(repoPath string) string {
+	out, err := run(repoPath, "config", "user.name")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(out)
 }
 
 func fetchRemote(repoPath, remoteName string) error {
@@ -132,6 +174,17 @@ func fetchRemote(repoPath, remoteName string) error {
 		return errors.New("remote name required")
 	}
 	_, err := run(repoPath, "fetch", remoteName, "--quiet")
+	return err
+}
+
+func pullRemoteBranch(repoPath, remoteName, branch string) error {
+	if strings.TrimSpace(remoteName) == "" {
+		return errors.New("remote name required")
+	}
+	if strings.TrimSpace(branch) == "" {
+		return errors.New("branch name required")
+	}
+	_, err := run(repoPath, "pull", remoteName, branch)
 	return err
 }
 
@@ -170,7 +223,7 @@ func ShowCommit(repoPath, hash string) string {
 }
 
 func listCommits(repoPath string, limit int) ([]Commit, error) {
-	args := []string{"log", "--pretty=format:%h|%an|%ar|%at|%s"}
+	args := []string{"log", "--decorate=short", "--pretty=format:%h%x1f%an%x1f%ae%x1f%ar%x1f%at%x1f%d%x1f%s%x1f%b%x1e"}
 	if limit > 0 {
 		args = append(args, fmt.Sprintf("-%d", limit))
 	}
@@ -186,20 +239,28 @@ func listCommits(repoPath string, limit int) ([]Commit, error) {
 		return []Commit{}, nil
 	}
 
-	lines := strings.Split(strings.TrimSpace(out), "\n")
-	commits := make([]Commit, 0, len(lines))
-	for _, line := range lines {
-		parts := strings.SplitN(line, "|", 5)
-		if len(parts) != 5 {
+	records := strings.Split(out, "\x1e")
+	commits := make([]Commit, 0, len(records))
+	for _, record := range records {
+		record = strings.TrimSpace(record)
+		if record == "" {
 			continue
 		}
-		epoch, _ := strconv.ParseInt(parts[3], 10, 64)
+
+		parts := strings.SplitN(record, "\x1f", 8)
+		if len(parts) != 8 {
+			continue
+		}
+		epoch, _ := strconv.ParseInt(parts[4], 10, 64)
 		commits = append(commits, Commit{
-			Hash:    parts[0],
-			Author:  parts[1],
-			Time:    parts[2],
-			When:    time.Unix(epoch, 0),
-			Message: parts[4],
+			Hash:        parts[0],
+			Author:      parts[1],
+			AuthorEmail: parts[2],
+			Time:        parts[3],
+			When:        time.Unix(epoch, 0),
+			Refs:        strings.TrimSpace(parts[5]),
+			Message:     parts[6],
+			Body:        strings.TrimSpace(parts[7]),
 		})
 	}
 	return commits, nil
